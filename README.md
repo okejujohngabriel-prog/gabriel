@@ -1,34 +1,47 @@
 # Bravo Express sales and orders
 
-## Connected online store
+## Africa-region deployment
 
-The connected version serves both the customer shop and the private staff dashboard from the same Render service. Customer orders and stock are shared through Supabase. Card checkout is handled by Stripe; the server verifies payment before marking an order paid. Never put provider keys in browser code, GitHub, or this README.
+The connected app is designed to run on Google Cloud Run with PostgreSQL on Cloud SQL in `africa-south1` (Johannesburg). Customer orders, stock reservations, and the staff dashboard use the same PostgreSQL database. The Node service connects through Cloud Run's Cloud SQL Unix socket. Stripe handles card checkout when its secrets are configured.
 
-### Set up Supabase
+**Cloud SQL is a paid service and requires an active Google Cloud billing account.** Review the current [Cloud SQL pricing](https://cloud.google.com/sql/pricing) and [Cloud Run pricing](https://cloud.google.com/run/pricing) before provisioning. Set a budget alert, keep Cloud Run minimum instances at zero, and cap maximum instances to control costs. No Google Cloud resources are created by this repository.
 
-1. Create a Supabase project.
-2. Open **SQL Editor**, run [`supabase/schema.sql`](./supabase/schema.sql), and wait for it to finish. This creates the tables and order/stock functions and seeds sample products.
-3. In **Project Settings → API**, copy the project URL and the `service_role` secret. The service-role secret bypasses database row-level security, so only enter it as a Render secret.
+### Create the database
 
-### Deploy on Render
+1. In Google Cloud Console, select a project with billing enabled. Enable Cloud SQL Admin, Cloud Run, Cloud Build, Artifact Registry, and Secret Manager APIs.
+2. Create a PostgreSQL Cloud SQL instance in `africa-south1`. Create a database named `bravo_express` and a dedicated database user. Save the instance connection name (`PROJECT_ID:africa-south1:INSTANCE_NAME`) and database username.
+3. Use Cloud SQL Studio to run [`database/schema.sql`](./database/schema.sql) against `bravo_express`. This creates the tables and seeds sample products. The former Supabase schema is not used by this deployment.
+4. Store the database password, staff password, and a random `SESSION_SECRET` of at least 32 characters in Secret Manager. Never put secrets in source code, GitHub, or this README.
+5. Grant the Cloud Run runtime service account the **Cloud SQL Client** role and **Secret Manager Secret Accessor** access to only the secrets it needs.
 
-1. Connect the GitHub repository to Render and create a Blueprint from [`render.yaml`](./render.yaml).
-2. In the Render service's environment settings, enter `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_USERNAME`, and a strong unique `ADMIN_PASSWORD`. Render generates `SESSION_SECRET`.
-3. Deploy the service and open its `https://…onrender.com` address once. Render provides that address to the app automatically.
+### Deploy the app
+
+Deploy this repository's source as a Cloud Run service named `bravo-express` in `africa-south1`. Allow unauthenticated invocations so customers can use the storefront; staff routes require the app's sign-in session. Attach the Cloud SQL instance and set the service's maximum instances to 3 (the server uses up to 5 database connections per instance).
+
+Set these Cloud Run environment variables:
+
+| Variable | Value |
+| --- | --- |
+| `INSTANCE_CONNECTION_NAME` | The Cloud SQL connection name from the instance details |
+| `DB_USER` | The dedicated Cloud SQL database username |
+| `DB_NAME` | `bravo_express` |
+| `ADMIN_USERNAME` | The staff sign-in username |
+
+Map Secret Manager versions to these environment variables: `DB_PASSWORD`, `ADMIN_PASSWORD`, and `SESSION_SECRET`. The app needs the service URL as `APP_URL` for same-origin checks and Stripe return links. After the first deployment, copy the Cloud Run service URL (for example, `https://bravo-express-....run.app`) into `APP_URL` and deploy a new revision.
+
+The health endpoint is `https://YOUR-SERVICE-URL/api/health`. It reports `configured: true` when the database connection settings, staff login secrets, and `APP_URL` are present; `payments` remains false until Stripe is configured.
 
 ### Enable card payments
 
-1. In Stripe, use **test mode** first and check that your account can accept the intended UGX payments.
-2. Create a webhook endpoint at `https://YOUR-RENDER-ADDRESS/api/stripe-webhook` for `checkout.session.completed`, `checkout.session.async_payment_succeeded`, and `checkout.session.expired`.
-3. Add the Stripe test secret key as `STRIPE_SECRET_KEY` and the endpoint's signing secret as `STRIPE_WEBHOOK_SECRET` in Render. Redeploy after saving.
-4. Test customer checkout, webhook confirmation, cancellation, and stock restoration before switching to live keys. Stripe fees and account eligibility depend on your country and account.
-
-The dashboard is private behind the configured staff login. Share the Render URL with customers using `?shop` (for example, `https://YOUR-RENDER-ADDRESS/?shop`). The GitHub Pages site remains a browser-local demo; it does not share orders with this service. A Render free service may sleep when idle and take a short time to wake.
+1. Confirm with Stripe that your account can accept the intended UGX payments. Start in test mode.
+2. Create Secret Manager secrets for `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`, then map them to Cloud Run environment variables with the same names.
+3. Register `https://YOUR-SERVICE-URL/api/stripe-webhook` in Stripe for `checkout.session.completed`, `checkout.session.async_payment_succeeded`, and `checkout.session.expired`.
+4. Test customer checkout, webhook confirmation, cancellation, and stock restoration before using live keys. Stripe fees and account eligibility depend on your country and account.
 
 Amounts are displayed as whole UGX values. Stripe's legacy UGX amount format requires two decimal places, so checkout sends the displayed price multiplied by 100.
 
-## Browser-only demo
+## Current hosted demo
 
-The GitHub Pages workflow also serves a free demo. Open the public Pages URL with `?shop` to preview the customer storefront. Demo orders are saved only in that browser; they are not sent to staff and no payment is taken. Do not enter real customer information.
+The existing GitHub Pages site remains a browser-local demo. Its orders stay in that browser; they are not sent to staff and no payment is taken. Do not enter real customer information. The previously created Render service is not connected to the Cloud SQL database and must not be treated as the live ordering system.
 
-Opening `index.html` directly runs the same local-only demo. For the connected service locally, install Node.js 18 or newer and run `npm start`; configure the required environment variables as described above.
+Opening `index.html` directly runs the same local-only demo. For local server development, install Node.js 18 or newer, set the PostgreSQL connection variables and staff credentials, then run `npm install` and `npm start`.

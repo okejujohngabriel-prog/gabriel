@@ -3,13 +3,30 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  attachStripeSession,
+  cancelOrder,
+  createOrder as databaseCreateOrder,
+  createProduct,
+  databaseConfigured,
+  deactivateProduct,
+  deleteOrder,
+  getOrderByStripeSession,
+  getOrderForCancellation,
+  getProductsByIds,
+  listAdminOrders,
+  listAdminProducts,
+  listPublicProducts,
+  markStripeOrderPaid,
+  productHasOrderHistory,
+  setOrderStatus,
+  updateOrderPayment
+} from "./database.mjs";
 
 const root = resolve(fileURLToPath(new URL(".", import.meta.url)));
 const port = Number(process.env.PORT || 3000);
 const host = process.env.HOST || "0.0.0.0";
-const appUrl = new URL(process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`);
-const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/+$/, "");
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const appUrl = new URL(process.env.APP_URL || `http://localhost:${port}`);
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 const stripeWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 const adminUsername = process.env.ADMIN_USERNAME || "";
@@ -26,13 +43,15 @@ const contentTypes = {
 const servedFiles = new Set(["index.html", "styles.css", "app.js"]);
 
 function configurationStatus() {
-  const database = Boolean(supabaseUrl && supabaseServiceKey);
+  const database = databaseConfigured;
   const staffLogin = Boolean(adminUsername && adminPassword && sessionSecret.length >= 32);
+  const publicUrl = !process.env.K_SERVICE || Boolean(process.env.APP_URL);
   return {
     database,
     staffLogin,
+    publicUrl,
     payments: Boolean(stripeSecretKey && stripeWebhookSecret),
-    ready: database && staffLogin
+    ready: database && staffLogin && publicUrl
   };
 }
 
@@ -77,56 +96,6 @@ function requireConfiguration(response, keys) {
     return false;
   }
   return true;
-}
-
-function supabaseHeaders(prefer) {
-  return {
-    apikey: supabaseServiceKey,
-    Authorization: `Bearer ${supabaseServiceKey}`,
-    "Content-Type": "application/json",
-    ...(prefer ? { Prefer: prefer } : {})
-  };
-}
-
-async function databaseRequest(path, options = {}) {
-  const result = await fetch(`${supabaseUrl}/rest/v1/${path}`, {
-    ...options,
-    headers: { ...supabaseHeaders(options.prefer), ...options.headers }
-  });
-  const text = await result.text();
-  let data;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    throw new Error("The database returned an invalid response.");
-  }
-  if (!result.ok) {
-    console.error("Supabase request failed:", result.status, data?.message || result.statusText);
-    throw Object.assign(new Error("The database could not complete the request."), { status: 502 });
-  }
-  return data;
-}
-
-async function databaseRpc(name, values) {
-  const result = await fetch(`${supabaseUrl}/rest/v1/rpc/${name}`, {
-    method: "POST",
-    headers: supabaseHeaders("return=representation"),
-    body: JSON.stringify(values)
-  });
-  const text = await result.text();
-  let data;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    throw new Error("The database returned an invalid response.");
-  }
-  if (!result.ok) {
-    const message = data?.message || data?.details || result.statusText;
-    console.error("Supabase RPC failed:", name, result.status, message);
-    const status = result.status === 400 || result.status === 404 || result.status === 409 ? 400 : 502;
-    throw Object.assign(new Error(status === 400 ? (data?.message || "The order could not be completed. Check the details and stock.") : "The database could not complete the request."), { status });
-  }
-  return data;
 }
 
 async function stripeRequest(endpoint, values, method = "POST") {
@@ -248,10 +217,6 @@ async function expireStripeSession(sessionId) {
   }
 }
 
-async function cancelOrder(orderId) {
-  await databaseRpc("cancel_order", { p_order_id: orderId });
-}
-
 async function closePendingCheckout(order) {
   if (!order.stripe_session_id || order.payment_status !== "Pending") return;
   if (!stripeSecretKey) {
@@ -259,10 +224,7 @@ async function closePendingCheckout(order) {
   }
   const session = await stripeRequest(`checkout/sessions/${order.stripe_session_id}`, null, "GET");
   if (session.payment_status === "paid") {
-    await databaseRequest(`orders?id=eq.${encodeURIComponent(order.id)}`, {
-      method: "PATCH",
-      body: JSON.stringify({ payment_status: "Paid", payment_method: "Visa/Mastercard via Stripe" })
-    });
+    await markStripeOrderPaid(order.stripe_session_id);
     throw Object.assign(new Error("This order has already been paid and cannot be cancelled or deleted without a refund."), { status: 409 });
   }
   if (session.status === "open") {
@@ -313,17 +275,7 @@ function publicOrder(order) {
 }
 
 async function createOrder(contact, items, paymentStatus, paymentMethod) {
-  const result = await databaseRpc("create_order", {
-    p_customer: contact.customer,
-    p_email: contact.email,
-    p_fulfillment: contact.fulfillment,
-    p_delivery_address: contact.address,
-    p_note: contact.note,
-    p_items: items.map((item) => ({ product_id: item.productId, quantity: item.quantity })),
-    p_payment_status: paymentStatus,
-    p_payment_method: paymentMethod
-  });
-  return result;
+  return databaseCreateOrder(contact, items, paymentStatus, paymentMethod);
 }
 
 async function createCustomerCheckout(request, response) {
@@ -335,7 +287,7 @@ async function createCustomerCheckout(request, response) {
   const data = await readJson(request);
   const contact = validateContact(data);
   const items = validateItems(data.items);
-  const products = await databaseRequest(`products?select=id,name,price,stock,active&id=in.(${encodeURIComponent(items.map((item) => item.productId).join(","))})`);
+  const products = await getProductsByIds(items.map((item) => item.productId));
   const productsById = new Map(products.map((product) => [product.id, product]));
   const lineItems = items.map((item, index) => {
     const product = productsById.get(item.productId);
@@ -362,12 +314,9 @@ async function createCustomerCheckout(request, response) {
   let order;
   try {
     order = await createOrder(contact, items, "Pending", "Visa/Mastercard via Stripe");
-    const update = await databaseRequest(`orders?id=eq.${encodeURIComponent(order.id)}`, {
-      method: "PATCH",
-      headers: { Prefer: "return=representation" },
-      body: JSON.stringify({ stripe_session_id: session.id })
-    });
-    if (!Array.isArray(update) || !update.length) throw new Error("The payment session could not be attached to the order.");
+    if (!await attachStripeSession(order.id, session.id)) {
+      throw new Error("The payment session could not be attached to the order.");
+    }
   } catch (error) {
     await expireStripeSession(session.id);
     if (order) {
@@ -413,16 +362,13 @@ async function handleStripeWebhook(request, response) {
   if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
     const session = event.data?.object;
     if (session?.payment_status === "paid") {
-      await databaseRequest(`orders?stripe_session_id=eq.${encodeURIComponent(session.id)}`, {
-        method: "PATCH",
-        body: JSON.stringify({ payment_status: "Paid", payment_method: "Visa/Mastercard via Stripe" })
-      });
+      await markStripeOrderPaid(session.id);
     }
   } else if (event.type === "checkout.session.expired") {
     const session = event.data?.object;
     if (session?.id) {
-      const orders = await databaseRequest(`orders?select=id,stripe_session_id,payment_status&stripe_session_id=eq.${encodeURIComponent(session.id)}`);
-      if (orders[0]?.payment_status === "Pending") await cancelOrder(orders[0].id);
+      const order = await getOrderByStripeSession(session.id);
+      if (order?.payment_status === "Pending") await cancelOrder(order.id);
     }
   }
   sendJson(response, 200, { received: true });
@@ -435,17 +381,13 @@ async function handleCheckoutReturn(request, response, sessionId, result) {
     return;
   }
   const session = await stripeRequest(`checkout/sessions/${sessionId}`, null, "GET");
-  const orders = await databaseRequest(`orders?select=id,payment_status,stripe_session_id&stripe_session_id=eq.${encodeURIComponent(session.id)}`);
-  const order = orders[0];
+  const order = await getOrderByStripeSession(session.id);
   if (!order) {
     sendError(response, 404, "The order for this checkout could not be found.");
     return;
   }
   if (session.payment_status === "paid" && order.payment_status !== "Paid") {
-    await databaseRequest(`orders?id=eq.${encodeURIComponent(order.id)}`, {
-      method: "PATCH",
-      body: JSON.stringify({ payment_status: "Paid", payment_method: "Visa/Mastercard via Stripe" })
-    });
+    await markStripeOrderPaid(session.id);
     order.payment_status = "Paid";
   }
   if ((session.status === "expired" || result === "cancelled") && order.payment_status === "Pending") {
@@ -516,7 +458,7 @@ async function handleApi(request, response, url) {
 
   if (method === "GET" && path === "/api/products") {
     if (!requireConfiguration(response, ["database"])) return;
-    const products = await databaseRequest("products?select=id,name,category,sku,price,stock,icon&active=eq.true&stock=gt.0&order=name.asc");
+    const products = await listPublicProducts();
     sendJson(response, 200, products.map(publicProduct));
     return;
   }
@@ -535,8 +477,8 @@ async function handleApi(request, response, url) {
   if (method === "GET" && path === "/api/admin/state") {
     if (!requireConfiguration(response, ["database"])) return;
     const [products, orders] = await Promise.all([
-      databaseRequest("products?select=id,name,category,sku,price,stock,icon,active&active=eq.true&order=name.asc"),
-      databaseRequest("orders?select=*,order_items(product_id,product_name,quantity,unit_price)&order=created_at.desc")
+      listAdminProducts(),
+      listAdminOrders()
     ]);
     sendJson(response, 200, {
       products: products.map(publicProduct),
@@ -574,14 +516,14 @@ async function handleApi(request, response, url) {
     }
     const orderId = decodeURIComponent(statusMatch[1]);
     if (data.status === "Cancelled") {
-      const orders = await databaseRequest(`orders?select=id,payment_status,stripe_session_id&id=eq.${encodeURIComponent(orderId)}&limit=1`);
-      if (!orders.length) {
+      const order = await getOrderForCancellation(orderId);
+      if (!order) {
         sendError(response, 404, "Order not found.");
         return;
       }
-      await closePendingCheckout(orders[0]);
+      await closePendingCheckout(order);
     }
-    await databaseRpc("set_order_status", { p_order_id: orderId, p_status: data.status });
+    await setOrderStatus(orderId, data.status);
     sendJson(response, 200, { updated: true });
     return;
   }
@@ -606,12 +548,12 @@ async function handleApi(request, response, url) {
       sendError(response, 400, "Choose a valid payment option.");
       return;
     }
-    const updated = await databaseRequest(`orders?id=eq.${encodeURIComponent(decodeURIComponent(paymentMatch[1]))}&select=id`, {
-      method: "PATCH",
-      headers: { Prefer: "return=representation" },
-      body: JSON.stringify({ payment_status: payment[0], payment_method: payment[1] })
-    });
-    if (!updated.length) {
+    const updated = await updateOrderPayment(
+      decodeURIComponent(paymentMatch[1]),
+      payment[0],
+      payment[1]
+    );
+    if (!updated) {
       sendError(response, 404, "Order not found.");
       return;
     }
@@ -626,13 +568,13 @@ async function handleApi(request, response, url) {
       return;
     }
     const orderId = decodeURIComponent(deleteOrderMatch[1]);
-    const orders = await databaseRequest(`orders?select=id,payment_status,stripe_session_id&id=eq.${encodeURIComponent(orderId)}&limit=1`);
-    if (!orders.length) {
+    const order = await getOrderForCancellation(orderId);
+    if (!order) {
       sendError(response, 404, "Order not found.");
       return;
     }
-    await closePendingCheckout(orders[0]);
-    await databaseRpc("delete_order", { p_order_id: orderId });
+    await closePendingCheckout(order);
+    await deleteOrder(orderId);
     sendJson(response, 200, { deleted: true });
     return;
   }
@@ -653,21 +595,16 @@ async function handleApi(request, response, url) {
       return;
     }
     const skuBase = name.toUpperCase().replace(/[^A-Z0-9]+/g, "").slice(0, 3) || "NEW";
-    const product = await databaseRequest("products", {
-      method: "POST",
-      headers: { Prefer: "return=representation" },
-      body: JSON.stringify({
-        id: `p${randomUUID().replace(/-/g, "")}`,
-        name,
-        category,
-        sku: `${skuBase}-${randomBytes(3).toString("hex").toUpperCase()}`,
-        price,
-        stock,
-        icon: "◈",
-        active: true
-      })
+    const product = await createProduct({
+      id: `p${randomUUID().replace(/-/g, "")}`,
+      name,
+      category,
+      sku: `${skuBase}-${randomBytes(3).toString("hex").toUpperCase()}`,
+      price,
+      stock,
+      icon: "◈"
     });
-    sendJson(response, 201, publicProduct(product[0]));
+    sendJson(response, 201, publicProduct(product));
     return;
   }
 
@@ -681,17 +618,11 @@ async function handleApi(request, response, url) {
       sendError(response, 400, "Invalid product.");
       return;
     }
-    const orders = await databaseRequest(`order_items?select=order_id&product_id=eq.${encodeURIComponent(productId)}&limit=1`);
-    if (orders.length) {
+    if (await productHasOrderHistory(productId)) {
       sendError(response, 409, "This product has order history and cannot be deleted.");
       return;
     }
-    const products = await databaseRequest(`products?id=eq.${encodeURIComponent(productId)}&select=id`, {
-      method: "PATCH",
-      headers: { Prefer: "return=representation" },
-      body: JSON.stringify({ active: false })
-    });
-    if (!products.length) {
+    if (!await deactivateProduct(productId)) {
       sendError(response, 404, "Product not found.");
       return;
     }
