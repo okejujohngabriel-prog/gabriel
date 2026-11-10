@@ -8,9 +8,21 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=storefront-1">
+    <link rel="stylesheet" href="styles.css?v=online-orders-2">
   </head>
-  <body>
+  <body class="booting">
+    <section class="login-screen hidden" id="login-screen" aria-labelledby="login-title">
+      <form class="login-card" id="login-form">
+        <span class="brand-mark login-brand-mark"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3.5 28 10v12L16 28.5 4 22V10L16 3.5Z" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="m10 16 4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <p class="eyebrow">BRAVO EXPRESS</p>
+        <h1 id="login-title">Staff sign in</h1>
+        <p class="login-subtitle">Sign in to manage your store and customer orders.</p>
+        <label class="form-field">Username<input name="username" required autocomplete="username"></label>
+        <label class="form-field">Password<input name="password" type="password" required autocomplete="current-password"></label>
+        <div class="form-error hidden" id="login-error" role="alert"></div>
+        <button class="button button-primary login-submit" type="submit">Sign in</button>
+      </form>
+    </section>
     <div class="app-shell">
       <aside class="sidebar" id="sidebar">
         <a class="brand" href="#" aria-label="Bravo Express home">
@@ -44,6 +56,7 @@
             <label class="search-box"><svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.5 4.5"/></svg><input id="global-search" type="search" placeholder="Search anything..." aria-label="Search anything"><kbd>⌘ K</kbd></label>
             <button class="icon-button notification-button" aria-label="Notifications"><svg viewBox="0 0 24 24"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9m-8 12h4"/><circle class="notification-dot" cx="18" cy="5" r="2.5"/></svg></button>
             <button class="top-avatar" aria-label="Jordan Davis profile">JD</button>
+            <button class="button button-secondary logout-button" id="logout-button" type="button">Sign out</button>
           </div>
         </header>
 
@@ -85,7 +98,7 @@
           </section>
 
           <section class="view-panel" id="view-shop">
-            <div class="shop-demo-notice"><strong>Storefront preview</strong><span>Demo only: orders stay in this browser. No real payment is collected.</span></div>
+            <div class="shop-demo-notice" id="shop-notice"><strong>Storefront preview</strong><span>Demo only: orders stay in this browser. No real payment is collected.</span></div>
             <div class="shop-hero">
               <p class="eyebrow">STUDIO SUPPLY CO.</p>
               <h1>Everyday pieces, thoughtfully made.</h1>
@@ -102,7 +115,7 @@
                 <div class="shop-cart-items" id="shop-cart-items"><p class="shop-cart-empty">Your bag is waiting for something lovely.</p></div>
                 <form id="customer-order-form">
                   <div class="shop-total"><span>Subtotal</span><strong id="shop-total">UGX 0</strong></div>
-                  <p class="shop-checkout-note">This preview records a pay-later order only. Online checkout is not connected yet.</p>
+                  <p class="shop-checkout-note" id="shop-checkout-note">Demo only: no payment will be collected.</p>
                   <div class="shop-form-fields">
                     <label class="form-field">Your name<input name="customer" required maxlength="70" autocomplete="name" placeholder="e.g. Alex Morgan"></label>
                     <label class="form-field">Email address<input name="email" type="email" required maxlength="120" autocomplete="email" placeholder="alex@example.com"></label>
@@ -118,7 +131,7 @@
                 <div class="shop-confirmation hidden" id="shop-confirmation" role="status" aria-live="polite"></div>
               </aside>
             </div>
-            <footer class="page-footer shop-footer"><span>© 2025 Bravo Express</span><span>Demo storefront · no online payments</span></footer>
+            <footer class="page-footer shop-footer"><span>© 2025 Bravo Express</span><span id="shop-footer-note">Demo storefront · no online payments</span></footer>
           </section>
         </div>
       </main>
@@ -153,6 +166,6 @@
       </div>
     </div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="app.js?v=storefront-1"></script>
+    <script src="app.js?v=online-orders-2"></script>
   </body>
 </html>

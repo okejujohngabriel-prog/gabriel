@@ -1,25 +1,34 @@
 # Bravo Express sales and orders
 
-## Free online demo
+## Connected online store
 
-This project includes a GitHub Pages deployment workflow. To publish it at no hosting cost:
+The connected version serves both the customer shop and the private staff dashboard from the same Render service. Customer orders and stock are shared through Supabase. Card checkout is handled by Stripe; the server verifies payment before marking an order paid. Never put provider keys in browser code, GitHub, or this README.
 
-1. Create a **public** GitHub repository and upload the project files, including `.github/workflows/pages.yml`, to its `main` branch. A public repository means the app's source code is visible to everyone.
-2. In the repository, open **Settings → Pages**, select **GitHub Actions** as the build and deployment source, and save.
-3. Open **Actions** and wait for **Deploy free demo to GitHub Pages** to finish. GitHub will show the website URL in the deployment details and **Settings → Pages**.
+### Set up Supabase
 
-The free demo supports adding catalog items with whole-shilling UGX price tags, managing inventory, creating orders, and recording cash, Visa, Mastercard, bank-transfer, or other payments already collected. These payment selections do **not** charge a card. Online card checkout is disabled on the hosted demo.
+1. Create a Supabase project.
+2. Open **SQL Editor**, run [`supabase/schema.sql`](./supabase/schema.sql), and wait for it to finish. This creates the tables and order/stock functions and seeds sample products.
+3. In **Project Settings → API**, copy the project URL and the `service_role` secret. The service-role secret bypasses database row-level security, so only enter it as a Render secret.
 
-The customer storefront preview is available at `https://okejujohngabriel-prog.github.io/gabriel/?shop` (or use **Preview customer shop** in the dashboard). Customers can build a multi-item bag, choose pickup or delivery, and place a demo pay-later order. Demo orders are saved only in the submitting browser; they are not sent to the business or shared with staff. The public demo does not have a private staff area, shared database, or live payment processing. Do not enter real customer information.
+### Deploy on Render
 
-Amounts in the app and optional local Stripe development checkout are in UGX. Existing price values are unchanged. Stripe requires UGX amounts to be sent in its legacy two-decimal representation, so checkout multiplies the displayed whole-shilling price by 100.
+1. Connect the GitHub repository to Render and create a Blueprint from [`render.yaml`](./render.yaml).
+2. In the Render service's environment settings, enter `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_USERNAME`, and a strong unique `ADMIN_PASSWORD`. Render generates `SESSION_SECRET`.
+3. Deploy the service and open its `https://…onrender.com` address once. Render provides that address to the app automatically.
 
-Products and orders are saved only in each visitor's browser. The demo has no shared order database or private admin area; visitors will not see each other's orders. To accept actual card payments or share orders between devices, you'll need a separately hosted server/database and payment processing, which may involve fees.
+### Enable card payments
 
-## Run free on your computer
+1. In Stripe, use **test mode** first and check that your account can accept the intended UGX payments.
+2. Create a webhook endpoint at `https://YOUR-RENDER-ADDRESS/api/stripe-webhook` for `checkout.session.completed`, `checkout.session.async_payment_succeeded`, and `checkout.session.expired`.
+3. Add the Stripe test secret key as `STRIPE_SECRET_KEY` and the endpoint's signing secret as `STRIPE_WEBHOOK_SECRET` in Render. Redeploy after saving.
+4. Test customer checkout, webhook confirmation, cancellation, and stock restoration before switching to live keys. Stripe fees and account eligibility depend on your country and account.
 
-Open `index.html` in a browser. Data stays in that browser on your computer.
+The dashboard is private behind the configured staff login. Share the Render URL with customers using `?shop` (for example, `https://YOUR-RENDER-ADDRESS/?shop`). The GitHub Pages site remains a browser-local demo; it does not share orders with this service. A Render free service may sleep when idle and take a short time to wake.
 
-## Optional Stripe development server
+Amounts are displayed as whole UGX values. Stripe's legacy UGX amount format requires two decimal places, so checkout sends the displayed price multiplied by 100.
 
-For local Stripe Checkout testing, install Node.js 18 or newer, set `STRIPE_SECRET_KEY` in the server environment to a Stripe **test** secret key, run `npm start`, and open `http://localhost:3000`. Never put the secret key in browser code. Stripe charges processing fees for real transactions. The sample products support checkout; products added in the browser need trusted prices added to `server.mjs`.
+## Browser-only demo
+
+The GitHub Pages workflow also serves a free demo. Open the public Pages URL with `?shop` to preview the customer storefront. Demo orders are saved only in that browser; they are not sent to staff and no payment is taken. Do not enter real customer information.
+
+Opening `index.html` directly runs the same local-only demo. For the connected service locally, install Node.js 18 or newer and run `npm start`; configure the required environment variables as described above.

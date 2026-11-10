@@ -1,4 +1,5 @@
 const STORAGE_KEY = "orbit-sales-orders-v1";
+const demoMode = location.protocol === "file:" || location.hostname.endsWith(".github.io");
 
 const initialState = {
   products: [
@@ -45,6 +46,7 @@ let state = loadState();
 let activeView = "dashboard";
 let customerCart = new Map();
 let toastTimer;
+let onlinePaymentsAvailable = false;
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -59,6 +61,35 @@ const orderItemsFor = (order) => Array.isArray(order.items) && order.items.lengt
   ? order.items
   : [{ productId: order.productId, quantity: order.quantity, unitPrice: productFor(order.productId)?.price || order.amount / order.quantity }];
 const isRecognizedSale = (order) => order.status !== "Cancelled" && order.paymentStatus !== "Unpaid";
+
+async function apiRequest(path, options = {}) {
+  let response;
+  try {
+    response = await fetch(path, {
+      ...options,
+      credentials: "same-origin",
+      headers: {
+        ...(options.body ? { "Content-Type": "application/json" } : {}),
+        ...options.headers
+      }
+    });
+  } catch (error) {
+    console.error("Could not reach the Bravo Express server:", error);
+    throw new Error("Could not reach the store server. Check your connection and try again.");
+  }
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    throw new Error("The store server returned an invalid response.");
+  }
+  if (!response.ok) {
+    const error = new Error(result.error || "The store could not complete the request.");
+    error.status = response.status;
+    throw error;
+  }
+  return result;
+}
 const paymentOptions = [
   { value: "unpaid", status: "Unpaid", method: "Pay later", label: "Unpaid — pay later" },
   { value: "paid_cash", status: "Paid", method: "Cash", label: "Paid — cash" },
@@ -78,6 +109,7 @@ function paymentOptionFor(order) {
 }
 
 function saveState() {
+  if (!demoMode) return;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch (error) {
@@ -102,7 +134,9 @@ function statusMarkup(status) {
 function orderItemsSummary(order) {
   const items = orderItemsFor(order);
   const names = items.map((item) => productFor(item.productId)?.name || item.name || "Product").join(", ");
-  return `${items.reduce((sum, item) => sum + item.quantity, 0)} ${items.length === 1 ? "item" : "items"} · ${names}`;
+  const fulfillment = order.fulfillment ? ` · ${order.fulfillment}${order.deliveryAddress ? `: ${order.deliveryAddress}` : ""}` : "";
+  const note = order.note ? ` · Note: ${order.note}` : "";
+  return `${items.reduce((sum, item) => sum + item.quantity, 0)} ${items.length === 1 ? "item" : "items"} · ${names}${fulfillment}${note}`;
 }
 
 function customerMarkup(name, index = 0, details = "") {
@@ -285,6 +319,13 @@ function renderAll() {
   renderCustomerShop();
 }
 
+async function refreshAdminState() {
+  const saved = await apiRequest("/api/admin/state");
+  state.products = saved.products;
+  state.orders = saved.orders;
+  renderAll();
+}
+
 function navigate(view) {
   activeView = view;
   $$(".view-panel").forEach((panel) => panel.classList.toggle("active", panel.id === `view-${view}`));
@@ -325,7 +366,7 @@ function renderCustomerShop() {
   const total = lines.reduce((sum, line) => sum + line.product.price * line.quantity, 0);
   $("#shop-cart-count").textContent = `${itemCount} ${itemCount === 1 ? "item" : "items"}`;
   $("#shop-total").textContent = money(total);
-  $("#shop-submit").disabled = !lines.length;
+  $("#shop-submit").disabled = !lines.length || (!demoMode && !onlinePaymentsAvailable);
 }
 
 function updateShopCart(productId, step) {
@@ -340,7 +381,7 @@ function updateShopCart(productId, step) {
   renderCustomerShop();
 }
 
-function submitCustomerOrder(event) {
+async function submitCustomerOrder(event) {
   event.preventDefault();
   const form = event.currentTarget;
   const error = $("#shop-order-error");
@@ -365,6 +406,31 @@ function submitCustomerOrder(event) {
   if (!["delivery", "pickup"].includes(fulfillment) || (fulfillment === "delivery" && !address)) {
     error.textContent = fulfillment === "delivery" ? "Enter a delivery address to continue." : "Choose delivery or pickup.";
     error.classList.remove("hidden");
+    return;
+  }
+
+  if (!demoMode) {
+    const submitButton = $("#shop-submit");
+    submitButton.disabled = true;
+    error.classList.add("hidden");
+    try {
+      const result = await apiRequest("/api/orders", {
+        method: "POST",
+        body: JSON.stringify({
+          customer: form.elements.customer.value.trim(),
+          email: form.elements.email.value.trim(),
+          fulfillment,
+          address,
+          note: form.elements.note.value.trim(),
+          items: items.map(({ product, quantity }) => ({ productId: product.id, quantity }))
+        })
+      });
+      window.location.assign(result.checkoutUrl);
+    } catch (checkoutError) {
+      error.textContent = checkoutError.message;
+      error.classList.remove("hidden");
+      submitButton.disabled = false;
+    }
     return;
   }
 
@@ -441,7 +507,7 @@ function prepareOrderModal() {
   openModal("order-modal");
 }
 
-function createOrder(event) {
+async function createOrder(event) {
   event.preventDefault();
   const form = event.currentTarget;
   const product = productFor(form.elements.product.value);
@@ -450,6 +516,38 @@ function createOrder(event) {
   if (!product || !Number.isInteger(quantity) || quantity < 1 || quantity > product.stock) {
     error.textContent = product ? `Only ${product.stock} units are currently in stock.` : "Choose a product that is in stock.";
     error.classList.remove("hidden");
+    return;
+  }
+  if (!demoMode) {
+    const submitButton = $("#submit-order");
+    submitButton.disabled = true;
+    try {
+      const payment = paymentOptions.find((option) => option.value === form.elements.paymentOption.value);
+      if (!payment) throw new Error("Choose a valid payment option.");
+      const order = await apiRequest("/api/admin/orders", {
+        method: "POST",
+        body: JSON.stringify({
+          customer: form.elements.customer.value.trim(),
+          email: form.elements.email.value.trim(),
+          items: [{ productId: product.id, quantity }],
+          paymentStatus: payment.status,
+          paymentMethod: payment.method
+        })
+      });
+      state.orders.unshift(order);
+      const updatedProduct = productFor(product.id);
+      if (updatedProduct) updatedProduct.stock = Math.max(0, updatedProduct.stock - quantity);
+      renderAll();
+      closeModals();
+      form.reset();
+      updateOrderTotal();
+      showToast("Order saved to the shared store.");
+    } catch (error) {
+      $("#order-error").textContent = error.message;
+      $("#order-error").classList.remove("hidden");
+    } finally {
+      submitButton.disabled = false;
+    }
     return;
   }
   if (form.elements.paymentOption.value === "stripe") {
@@ -516,9 +614,33 @@ async function completeCardCheckout() {
   const params = new URLSearchParams(window.location.search);
   const checkoutSession = params.get("session_id");
   const paymentResult = params.get("payment");
-  if (!checkoutSession || paymentResult !== "success") {
-    if (paymentResult === "cancelled") showToast("Payment was cancelled. No order was placed.", true);
+  if (!checkoutSession || !paymentResult) {
     if (paymentResult) window.history.replaceState({}, "", window.location.pathname);
+    return;
+  }
+  if (!demoMode) {
+    try {
+      const result = await apiRequest(`/api/checkout-sessions/${encodeURIComponent(checkoutSession)}?result=${encodeURIComponent(paymentResult)}`);
+      window.history.replaceState({}, "", `${window.location.pathname}?shop`);
+      if (paymentResult === "success" && result.paymentStatus === "Paid") {
+        customerCart.clear();
+        renderCustomerShop();
+        $("#customer-order-form").classList.add("hidden");
+        $("#shop-confirmation").innerHTML = `<span class="shop-confirmation-icon">✓</span><h3>Payment received</h3><p>Your order <strong>#${escapeHtml(result.orderId)}</strong> is confirmed. The store will contact you about fulfillment.</p>`;
+        $("#shop-confirmation").classList.remove("hidden");
+      } else {
+        showToast("Payment was not completed. Your order was not placed.", true);
+      }
+    } catch (checkoutError) {
+      console.error("Could not verify completed Stripe checkout:", checkoutError);
+      window.history.replaceState({}, "", `${window.location.pathname}?shop`);
+      showToast(checkoutError.message, true);
+    }
+    return;
+  }
+  if (paymentResult !== "success") {
+    window.history.replaceState({}, "", window.location.pathname);
+    showToast("Payment was cancelled. No order was placed.", true);
     return;
   }
   window.history.replaceState({}, "", window.location.pathname);
@@ -553,7 +675,7 @@ async function completeCardCheckout() {
   }
 }
 
-function addProduct(event) {
+async function addProduct(event) {
   event.preventDefault();
   const form = event.currentTarget;
   const name = form.elements.name.value.trim();
@@ -566,6 +688,27 @@ function addProduct(event) {
     error.classList.remove("hidden");
     return;
   }
+  if (!demoMode) {
+    const submitButton = form.querySelector('[type="submit"]');
+    submitButton.disabled = true;
+    try {
+      const product = await apiRequest("/api/admin/products", {
+        method: "POST",
+        body: JSON.stringify({ name, category, price, stock })
+      });
+      state.products.push(product);
+      renderAll();
+      closeModals();
+      form.reset();
+      showToast("Product added to the shared catalog.");
+    } catch (requestError) {
+      error.textContent = requestError.message;
+      error.classList.remove("hidden");
+    } finally {
+      submitButton.disabled = false;
+    }
+    return;
+  }
   const skuBase = name.toUpperCase().replace(/[^A-Z0-9]+/g, "").slice(0, 3) || "NEW";
   state.products.push({ id: `p${Date.now()}`, name, category, sku: `${skuBase}-${String(state.products.length + 1).padStart(3, "0")}`, price, stock, icon: "◈" });
   saveState();
@@ -575,10 +718,26 @@ function addProduct(event) {
   showToast("Product added to your catalog.");
 }
 
-function setOrderPayment(orderId, paymentOption) {
+async function setOrderPayment(orderId, paymentOption) {
   const order = state.orders.find((item) => item.id === orderId);
   const payment = paymentOptions.find((option) => option.value === paymentOption);
   if (!order || !payment) return;
+  if (!demoMode) {
+    try {
+      await apiRequest(`/api/admin/orders/${encodeURIComponent(orderId)}/payment`, {
+        method: "PATCH",
+        body: JSON.stringify({ paymentOption })
+      });
+      order.paymentStatus = payment.status;
+      order.paymentMethod = payment.method;
+      renderAll();
+      showToast(`Order ${order.id} payment marked ${payment.status.toLowerCase()}.`);
+    } catch (error) {
+      showToast(error.message, true);
+      renderOrders();
+    }
+    return;
+  }
   order.paymentStatus = payment.status;
   order.paymentMethod = payment.method;
   saveState();
@@ -586,9 +745,23 @@ function setOrderPayment(orderId, paymentOption) {
   showToast(`Order ${order.id} payment marked ${payment.status.toLowerCase()}.`);
 }
 
-function setOrderStatus(orderId, status) {
+async function setOrderStatus(orderId, status) {
   const order = state.orders.find((item) => item.id === orderId);
   if (!order || order.status === status) return;
+  if (!demoMode) {
+    try {
+      await apiRequest(`/api/admin/orders/${encodeURIComponent(orderId)}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status })
+      });
+      await refreshAdminState();
+      showToast(`Order ${order.id} marked ${status.toLowerCase()}.`);
+    } catch (error) {
+      showToast(error.message, true);
+      renderOrders();
+    }
+    return;
+  }
   const items = orderItemsFor(order);
   if (order.status === "Cancelled" && status !== "Cancelled") {
     const unavailable = items.find((item) => {
@@ -617,9 +790,19 @@ function setOrderStatus(orderId, status) {
   showToast(`Order ${order.id} marked ${status.toLowerCase()}.`);
 }
 
-function deleteOrder(orderId) {
+async function deleteOrder(orderId) {
   const order = state.orders.find((item) => item.id === orderId);
   if (!order || !window.confirm(`Delete order ${order.id}? This cannot be undone.`)) return;
+  if (!demoMode) {
+    try {
+      await apiRequest(`/api/admin/orders/${encodeURIComponent(orderId)}`, { method: "DELETE" });
+      await refreshAdminState();
+      showToast("Order deleted.");
+    } catch (error) {
+      showToast(error.message, true);
+    }
+    return;
+  }
   if (order.status !== "Cancelled") {
     for (const item of orderItemsFor(order)) {
       const product = productFor(item.productId);
@@ -632,9 +815,21 @@ function deleteOrder(orderId) {
   showToast("Order deleted.");
 }
 
-function deleteProduct(productId) {
+async function deleteProduct(productId) {
   const product = productFor(productId);
   if (!product) return;
+  if (!demoMode) {
+    if (!window.confirm(`Remove ${product.name} from the customer catalog?`)) return;
+    try {
+      await apiRequest(`/api/admin/products/${encodeURIComponent(productId)}`, { method: "DELETE" });
+      state.products = state.products.filter((item) => item.id !== productId);
+      renderAll();
+      showToast("Product removed from the shared catalog.");
+    } catch (error) {
+      showToast(error.message, true);
+    }
+    return;
+  }
   if (state.orders.some((order) => orderItemsFor(order).some((item) => item.productId === productId))) {
     showToast("This product has order history and can’t be deleted.", true);
     return;
@@ -699,6 +894,8 @@ const todayLabel = $("#today-label");
 const paymentNote = $("#payment-note");
 const customerOrderForm = $("#customer-order-form");
 const shopFulfillment = $("#shop-fulfillment");
+const loginForm = $("#login-form");
+const logoutButton = $("#logout-button");
 
 if (orderForm) orderForm.addEventListener("submit", createOrder);
 if (customerOrderForm) customerOrderForm.addEventListener("submit", submitCustomerOrder);
@@ -741,6 +938,48 @@ if (typeof document !== "undefined") {
     }
   });
 }
+if (loginForm) loginForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const submitButton = form.querySelector('[type="submit"]');
+  const error = $("#login-error");
+  error.classList.add("hidden");
+  submitButton.disabled = true;
+  try {
+    await apiRequest("/api/login", {
+      method: "POST",
+      body: JSON.stringify({
+        username: form.elements.username.value.trim(),
+        password: form.elements.password.value
+      })
+    });
+    const saved = await apiRequest("/api/admin/state");
+    state.products = saved.products;
+    state.orders = saved.orders;
+    document.body.classList.add("authenticated");
+    $("#login-screen").classList.add("hidden");
+    form.reset();
+    renderAll();
+  } catch (loginError) {
+    error.textContent = loginError.message;
+    error.classList.remove("hidden");
+  } finally {
+    submitButton.disabled = false;
+  }
+});
+if (logoutButton) logoutButton.addEventListener("click", async () => {
+  try {
+    await apiRequest("/api/logout", { method: "POST" });
+  } catch (error) {
+    showToast(error.message, true);
+    return;
+  }
+  state.products = [];
+  state.orders = [];
+  document.body.classList.remove("authenticated");
+  $("#login-screen").classList.remove("hidden");
+  renderAll();
+});
 if (exportButton) exportButton.addEventListener("click", exportOrders);
 if (ordersExport) ordersExport.addEventListener("click", exportOrders);
 if (mobileMenu) mobileMenu.addEventListener("click", () => {
@@ -770,16 +1009,93 @@ if (typeof document !== "undefined") {
 }
 
 if (todayLabel) todayLabel.textContent = new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" }).format(new Date()).toUpperCase();
-if (typeof location !== "undefined" && (location.protocol !== "http:" || !["localhost", "127.0.0.1"].includes(location.hostname))) {
-  const stripeOption = $('#payment-method option[value="stripe"]');
-  if (stripeOption) stripeOption.remove();
-  if (paymentNote) paymentNote.textContent = "Cash, Visa, Mastercard, and transfer options record payments collected elsewhere; they do not charge a card. Online card checkout is unavailable in this free hosted demo.";
-}
-if (typeof document !== "undefined") {
-  if (new URLSearchParams(window.location.search).has("shop")) {
-    document.body.classList.add("shop-mode");
-    navigate("shop");
+const stripeOption = $('#payment-method option[value="stripe"]');
+if (stripeOption) stripeOption.remove();
+if (paymentNote) paymentNote.textContent = "Cash, card, and transfer options record payments already collected. To charge Visa or Mastercard online, customers use the secure customer shop.";
+
+async function initializeApp() {
+  const isShop = new URLSearchParams(window.location.search).has("shop");
+  if (demoMode) {
+    if (isShop) {
+      document.body.classList.add("shop-mode");
+      $("#shop-notice").innerHTML = "<strong>Storefront preview</strong><span>Demo only: orders stay in this browser. No real payment is collected.</span>";
+    }
+    document.body.classList.remove("booting");
+    renderAll();
+    if (isShop) navigate("shop");
+    completeCardCheckout();
+    return;
   }
-  renderAll();
-  completeCardCheckout();
+
+  document.body.classList.add("online-mode");
+  if (isShop) {
+    document.body.classList.add("shop-mode");
+    document.body.classList.remove("booting");
+    navigate("shop");
+    $("#shop-notice").innerHTML = "<strong>Online storefront</strong><span>Loading the store catalog and checkout options…</span>";
+    $("#shop-checkout-note").textContent = "Loading secure checkout options…";
+    $("#shop-submit").textContent = "Continue to secure card payment";
+    try {
+      const [health, saved] = await Promise.all([
+        apiRequest("/api/health"),
+        apiRequest("/api/products")
+      ]);
+      onlinePaymentsAvailable = health.payments;
+      state.products = saved;
+      state.orders = [];
+      renderCustomerShop();
+      if (onlinePaymentsAvailable) {
+        $("#shop-notice").innerHTML = "<strong>Secure online shop</strong><span>Your order is sent to the store. Card payment is processed securely by Stripe.</span>";
+        $("#shop-checkout-note").textContent = "Visa and Mastercard checkout is handled securely by Stripe. Card details are never stored by this store.";
+        $("#shop-footer-note").textContent = "Secure card checkout · pickup & delivery";
+      } else {
+        $("#shop-notice").innerHTML = "<strong>Online shop setup in progress</strong><span>Browse products now; secure card checkout will be available soon.</span>";
+        $("#shop-checkout-note").textContent = "Online card checkout is not enabled yet. Please check back soon.";
+        $("#shop-submit").textContent = "Online checkout unavailable";
+        $("#shop-submit").disabled = true;
+        $("#shop-footer-note").textContent = "Online payments are being set up";
+      }
+      await completeCardCheckout();
+    } catch (error) {
+      state.products = [];
+      renderCustomerShop();
+      $("#shop-notice").innerHTML = "<strong>Online shop setup in progress</strong><span>The store catalog is not available yet. Please check back soon.</span>";
+      $("#shop-checkout-note").textContent = "Secure checkout will be available when the store is ready.";
+      $("#shop-submit").textContent = "Online checkout unavailable";
+      $("#shop-footer-note").textContent = "Online store setup in progress";
+      $("#shop-product-grid").innerHTML = `<div class="shop-empty-products">${escapeHtml(error.message)} Please try again later.</div>`;
+      $("#shop-submit").disabled = true;
+    }
+    return;
+  }
+
+  const loginScreen = $("#login-screen");
+  const loginError = $("#login-error");
+  try {
+    const health = await apiRequest("/api/health");
+    if (!health.configured) {
+      loginError.textContent = "The secure store server is not fully configured yet.";
+      loginError.classList.remove("hidden");
+      loginScreen.classList.remove("hidden");
+      document.body.classList.remove("booting");
+      return;
+    }
+    const session = await apiRequest("/api/session");
+    if (!session.authenticated) {
+      loginScreen.classList.remove("hidden");
+      document.body.classList.remove("booting");
+      return;
+    }
+    await refreshAdminState();
+    document.body.classList.add("authenticated");
+    document.body.classList.remove("booting");
+    completeCardCheckout();
+  } catch (error) {
+    loginError.textContent = error.message;
+    loginError.classList.remove("hidden");
+    loginScreen.classList.remove("hidden");
+    document.body.classList.remove("booting");
+  }
 }
+
+initializeApp();
