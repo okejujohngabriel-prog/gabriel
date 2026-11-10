@@ -43,6 +43,7 @@ function loadState() {
 
 let state = loadState();
 let activeView = "dashboard";
+let customerCart = new Map();
 let toastTimer;
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -54,6 +55,9 @@ const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (char) => ({ "&"
 const initials = (name) => name.split(/\s+/).slice(0, 2).map((part) => part[0] || "").join("").toUpperCase();
 const sortedOrders = () => [...state.orders].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 const productFor = (id) => state.products.find((product) => product.id === id);
+const orderItemsFor = (order) => Array.isArray(order.items) && order.items.length
+  ? order.items
+  : [{ productId: order.productId, quantity: order.quantity, unitPrice: productFor(order.productId)?.price || order.amount / order.quantity }];
 const isRecognizedSale = (order) => order.status !== "Cancelled" && order.paymentStatus !== "Unpaid";
 const paymentOptions = [
   { value: "unpaid", status: "Unpaid", method: "Pay later", label: "Unpaid — pay later" },
@@ -95,15 +99,21 @@ function statusMarkup(status) {
   return `<span class="status-pill status-${status.toLowerCase()}">${escapeHtml(status)}</span>`;
 }
 
-function customerMarkup(name, index = 0) {
-  return `<div class="customer-cell"><span class="customer-initial tone-${index % 4}">${escapeHtml(initials(name))}</span><span class="customer-name">${escapeHtml(name)}</span></div>`;
+function orderItemsSummary(order) {
+  const items = orderItemsFor(order);
+  const names = items.map((item) => productFor(item.productId)?.name || item.name || "Product").join(", ");
+  return `${items.reduce((sum, item) => sum + item.quantity, 0)} ${items.length === 1 ? "item" : "items"} · ${names}`;
+}
+
+function customerMarkup(name, index = 0, details = "") {
+  return `<div class="customer-cell"><span class="customer-initial tone-${index % 4}">${escapeHtml(initials(name))}</span><span class="customer-description"><span class="customer-name">${escapeHtml(name)}</span>${details ? `<small>${escapeHtml(details)}</small>` : ""}</span></div>`;
 }
 
 function renderOrderRows(orders, target) {
   target.innerHTML = orders.map((order, index) => `
     <tr>
       <td class="order-id">#${escapeHtml(order.id)}</td>
-      <td>${customerMarkup(order.customer, index)}</td>
+      <td>${customerMarkup(order.customer, index, orderItemsSummary(order))}</td>
       <td>${formatDate(order.createdAt)}</td>
       <td>${money(order.amount)}</td>
       <td>${target.id === "all-orders" ? `<select class="payment-select" data-order-payment="${escapeHtml(order.id)}" aria-label="Update payment for ${escapeHtml(order.id)}">${paymentOptions.map((option) => `<option value="${option.value}"${paymentOptionFor(order) === option.value ? " selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}</select>` : `<span class="payment-pill ${order.paymentStatus === "Paid" ? "payment-paid" : order.paymentStatus === "Unpaid" ? "payment-unpaid" : "payment-unrecorded"}">${escapeHtml(order.paymentStatus || "Unrecorded")}${order.paymentMethod ? ` · ${escapeHtml(order.paymentMethod)}` : ""}</span>`}</td>
@@ -272,18 +282,128 @@ function renderAll() {
   renderOrders();
   renderProducts();
   renderCustomers();
+  renderCustomerShop();
 }
 
 function navigate(view) {
   activeView = view;
   $$(".view-panel").forEach((panel) => panel.classList.toggle("active", panel.id === `view-${view}`));
   $$(".nav-item").forEach((item) => item.classList.toggle("active", item.dataset.view === view));
-  const label = { dashboard: "Overview", orders: "Orders", products: "Products", customers: "Customers" }[view];
+  const label = { dashboard: "Overview", orders: "Orders", products: "Products", customers: "Customers", shop: "Customer shop" }[view];
   $("#breadcrumb-current").textContent = label;
   $("#sidebar").classList.remove("open");
   if (view === "orders") renderOrders();
   if (view === "products") renderProducts();
   if (view === "customers") renderCustomers();
+  if (view === "shop") renderCustomerShop();
+}
+
+function renderCustomerShop() {
+  const grid = $("#shop-product-grid");
+  const cartItems = $("#shop-cart-items");
+  if (!grid || !cartItems) return;
+
+  const availableProducts = state.products.filter((product) => product.stock > 0);
+  $("#shop-product-count").textContent = `${availableProducts.length} ${availableProducts.length === 1 ? "piece" : "pieces"}`;
+  grid.innerHTML = availableProducts.length ? availableProducts.map((product, index) => {
+    const quantity = customerCart.get(product.id) || 0;
+    return `<article class="shop-product-card">
+      <div class="shop-product-art art-${index % 4}"><span class="product-thumb">${escapeHtml(product.icon || "◈")}</span><span class="shop-stock">${product.stock} in stock</span></div>
+      <div class="shop-product-info"><span class="shop-product-category">${escapeHtml(product.category)}</span><h3>${escapeHtml(product.name)}</h3><div class="shop-product-buy"><strong>${money(product.price)}</strong><button class="button ${quantity ? "button-secondary" : "button-primary"}" type="button" data-shop-add="${escapeHtml(product.id)}" ${quantity >= product.stock ? "disabled" : ""}>${quantity ? `Add another (${quantity})` : "Add to bag"}</button></div></div>
+    </article>`;
+  }).join("") : `<div class="shop-empty-products">There are no in-stock products right now.</div>`;
+
+  const lines = [...customerCart.entries()].map(([productId, quantity]) => ({ product: productFor(productId), quantity })).filter((line) => line.product);
+  if (lines.length !== customerCart.size) customerCart = new Map(lines.map(({ product, quantity }) => [product.id, quantity]));
+  cartItems.innerHTML = lines.length ? lines.map(({ product, quantity }) => `
+    <div class="shop-cart-line">
+      <span class="product-thumb">${escapeHtml(product.icon || "◈")}</span>
+      <div class="shop-cart-product"><strong>${escapeHtml(product.name)}</strong><span>${money(product.price)} each</span><div class="shop-quantity"><button type="button" data-shop-quantity="${escapeHtml(product.id)}" data-step="-1" aria-label="Remove one ${escapeHtml(product.name)}">−</button><span>${quantity}</span><button type="button" data-shop-quantity="${escapeHtml(product.id)}" data-step="1" aria-label="Add one ${escapeHtml(product.name)}" ${quantity >= product.stock ? "disabled" : ""}>+</button></div></div>
+      <div class="shop-cart-price"><strong>${money(product.price * quantity)}</strong><button type="button" data-shop-remove="${escapeHtml(product.id)}" aria-label="Remove ${escapeHtml(product.name)} from bag">Remove</button></div>
+    </div>`).join("") : `<p class="shop-cart-empty">Your bag is waiting for something lovely.</p>`;
+  const itemCount = lines.reduce((sum, line) => sum + line.quantity, 0);
+  const total = lines.reduce((sum, line) => sum + line.product.price * line.quantity, 0);
+  $("#shop-cart-count").textContent = `${itemCount} ${itemCount === 1 ? "item" : "items"}`;
+  $("#shop-total").textContent = money(total);
+  $("#shop-submit").disabled = !lines.length;
+}
+
+function updateShopCart(productId, step) {
+  const product = productFor(productId);
+  if (!product) return;
+  const next = (customerCart.get(productId) || 0) + step;
+  if (next <= 0) customerCart.delete(productId);
+  else customerCart.set(productId, Math.min(next, product.stock));
+  $("#shop-confirmation").classList.add("hidden");
+  $("#customer-order-form").classList.remove("hidden");
+  $("#shop-order-error").classList.add("hidden");
+  renderCustomerShop();
+}
+
+function submitCustomerOrder(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const error = $("#shop-order-error");
+  const items = [...customerCart.entries()].map(([productId, quantity]) => {
+    const product = productFor(productId);
+    return product ? { product, quantity } : null;
+  }).filter(Boolean);
+  const fulfillment = form.elements.fulfillment.value;
+  const address = form.elements.address.value.trim();
+  if (!items.length) {
+    error.textContent = "Add an in-stock item to your bag before placing an order.";
+    error.classList.remove("hidden");
+    return;
+  }
+  const unavailable = items.find(({ product, quantity }) => !Number.isInteger(quantity) || quantity < 1 || quantity > product.stock);
+  if (unavailable) {
+    error.textContent = `${unavailable.product.name} no longer has enough stock. Please update your bag.`;
+    error.classList.remove("hidden");
+    renderCustomerShop();
+    return;
+  }
+  if (!["delivery", "pickup"].includes(fulfillment) || (fulfillment === "delivery" && !address)) {
+    error.textContent = fulfillment === "delivery" ? "Enter a delivery address to continue." : "Choose delivery or pickup.";
+    error.classList.remove("hidden");
+    return;
+  }
+
+  const orderNumber = Math.max(1048, ...state.orders.map((order) => Number(order.id.replace(/\D/g, "")) || 0)) + 1;
+  const orderId = `OR-${orderNumber}`;
+  const orderItems = items.map(({ product, quantity }) => ({
+    productId: product.id,
+    name: product.name,
+    quantity,
+    unitPrice: product.price
+  }));
+  for (const { product, quantity } of items) product.stock -= quantity;
+  state.orders.unshift({
+    id: orderId,
+    customer: form.elements.customer.value.trim(),
+    email: form.elements.email.value.trim(),
+    productId: orderItems[0].productId,
+    quantity: orderItems.reduce((sum, item) => sum + item.quantity, 0),
+    items: orderItems,
+    fulfillment,
+    deliveryAddress: fulfillment === "delivery" ? address : "",
+    note: form.elements.note.value.trim(),
+    amount: orderItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0),
+    status: "Pending",
+    paymentStatus: "Unpaid",
+    paymentMethod: "Pay later",
+    createdAt: new Date().toISOString()
+  });
+  saveState();
+  customerCart.clear();
+  form.reset();
+  $("#shop-fulfillment").value = "delivery";
+  $("#shop-address-field").classList.remove("hidden");
+  customerOrderForm.elements.address.required = true;
+  $("#shop-order-error").classList.add("hidden");
+  $("#customer-order-form").classList.add("hidden");
+  $("#shop-confirmation").innerHTML = `<span class="shop-confirmation-icon">✓</span><h3>Thanks, ${escapeHtml(state.orders[0].customer)}!</h3><p>Your demo order <strong>#${escapeHtml(orderId)}</strong> has been recorded in this browser.</p><span class="shop-confirmation-demo">This is a preview only. The store won’t receive this order and no payment was taken.</span><button class="button button-secondary" type="button" data-shop-new-order>Continue shopping</button>`;
+  $("#shop-confirmation").classList.remove("hidden");
+  renderAll();
 }
 
 function openModal(id) {
@@ -469,16 +589,27 @@ function setOrderPayment(orderId, paymentOption) {
 function setOrderStatus(orderId, status) {
   const order = state.orders.find((item) => item.id === orderId);
   if (!order || order.status === status) return;
-  const product = productFor(order.productId);
-  if (product && order.status === "Cancelled" && status !== "Cancelled") {
-    if (product.stock < order.quantity) {
-      showToast(`Cannot reopen order: only ${product.stock} units are in stock.`, true);
+  const items = orderItemsFor(order);
+  if (order.status === "Cancelled" && status !== "Cancelled") {
+    const unavailable = items.find((item) => {
+      const product = productFor(item.productId);
+      return product && product.stock < item.quantity;
+    });
+    if (unavailable) {
+      const product = productFor(unavailable.productId);
+      showToast(`Cannot reopen order: only ${product.stock} ${product.stock === 1 ? "unit is" : "units are"} in stock for ${product.name}.`, true);
       renderOrders();
       return;
     }
-    product.stock -= order.quantity;
-  } else if (product && order.status !== "Cancelled" && status === "Cancelled") {
-    product.stock += order.quantity;
+    for (const item of items) {
+      const product = productFor(item.productId);
+      if (product) product.stock -= item.quantity;
+    }
+  } else if (order.status !== "Cancelled" && status === "Cancelled") {
+    for (const item of items) {
+      const product = productFor(item.productId);
+      if (product) product.stock += item.quantity;
+    }
   }
   order.status = status;
   saveState();
@@ -490,8 +621,10 @@ function deleteOrder(orderId) {
   const order = state.orders.find((item) => item.id === orderId);
   if (!order || !window.confirm(`Delete order ${order.id}? This cannot be undone.`)) return;
   if (order.status !== "Cancelled") {
-    const product = productFor(order.productId);
-    if (product) product.stock += order.quantity;
+    for (const item of orderItemsFor(order)) {
+      const product = productFor(item.productId);
+      if (product) product.stock += item.quantity;
+    }
   }
   state.orders = state.orders.filter((item) => item.id !== orderId);
   saveState();
@@ -502,7 +635,7 @@ function deleteOrder(orderId) {
 function deleteProduct(productId) {
   const product = productFor(productId);
   if (!product) return;
-  if (state.orders.some((order) => order.productId === productId)) {
+  if (state.orders.some((order) => orderItemsFor(order).some((item) => item.productId === productId))) {
     showToast("This product has order history and can’t be deleted.", true);
     return;
   }
@@ -516,7 +649,7 @@ function deleteProduct(productId) {
 function exportOrders() {
   const rows = [["Order", "Customer", "Email", "Product", "Quantity", "Date", "Amount (UGX)", "Payment status", "Payment method", "Status"]];
   sortedOrders().forEach((order) => rows.push([
-    order.id, order.customer, order.email, productFor(order.productId)?.name || "Product removed",
+    order.id, order.customer, order.email, orderItemsSummary(order),
     order.quantity, formatDate(order.createdAt), order.amount.toFixed(2), order.paymentStatus || "Unrecorded",
     order.paymentMethod || "", order.status
   ]));
@@ -564,8 +697,16 @@ const helpButton = $("#help-button");
 const globalSearch = $("#global-search");
 const todayLabel = $("#today-label");
 const paymentNote = $("#payment-note");
+const customerOrderForm = $("#customer-order-form");
+const shopFulfillment = $("#shop-fulfillment");
 
 if (orderForm) orderForm.addEventListener("submit", createOrder);
+if (customerOrderForm) customerOrderForm.addEventListener("submit", submitCustomerOrder);
+if (shopFulfillment) shopFulfillment.addEventListener("change", () => {
+  const isDelivery = shopFulfillment.value === "delivery";
+  $("#shop-address-field").classList.toggle("hidden", !isDelivery);
+  customerOrderForm.elements.address.required = isDelivery;
+});
 if (productForm) productForm.addEventListener("submit", addProduct);
 if (orderProduct) orderProduct.addEventListener("change", updateOrderTotal);
 if (orderForm && orderForm.elements && orderForm.elements.quantity) orderForm.elements.quantity.addEventListener("input", updateOrderTotal);
@@ -585,8 +726,19 @@ if (typeof document !== "undefined") {
   document.addEventListener("click", (event) => {
     const deleteOrderButton = event.target.closest("[data-delete-order]");
     const deleteProductButton = event.target.closest("[data-delete-product]");
+    const addToBagButton = event.target.closest("[data-shop-add]");
+    const changeQuantityButton = event.target.closest("[data-shop-quantity]");
+    const removeFromBagButton = event.target.closest("[data-shop-remove]");
+    const newShopOrderButton = event.target.closest("[data-shop-new-order]");
     if (deleteOrderButton) deleteOrder(deleteOrderButton.dataset.deleteOrder);
     if (deleteProductButton) deleteProduct(deleteProductButton.dataset.deleteProduct);
+    if (addToBagButton) updateShopCart(addToBagButton.dataset.shopAdd, 1);
+    if (changeQuantityButton) updateShopCart(changeQuantityButton.dataset.shopQuantity, Number(changeQuantityButton.dataset.step));
+    if (removeFromBagButton) updateShopCart(removeFromBagButton.dataset.shopRemove, -(customerCart.get(removeFromBagButton.dataset.shopRemove) || 0));
+    if (newShopOrderButton) {
+      $("#shop-confirmation").classList.add("hidden");
+      $("#customer-order-form").classList.remove("hidden");
+    }
   });
 }
 if (exportButton) exportButton.addEventListener("click", exportOrders);
@@ -624,8 +776,10 @@ if (typeof location !== "undefined" && (location.protocol !== "http:" || !["loca
   if (paymentNote) paymentNote.textContent = "Cash, Visa, Mastercard, and transfer options record payments collected elsewhere; they do not charge a card. Online card checkout is unavailable in this free hosted demo.";
 }
 if (typeof document !== "undefined") {
+  if (new URLSearchParams(window.location.search).has("shop")) {
+    document.body.classList.add("shop-mode");
+    navigate("shop");
+  }
   renderAll();
   completeCardCheckout();
-  
-
 }

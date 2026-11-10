@@ -40,6 +40,7 @@
           <button class="mobile-menu" id="mobile-menu" aria-label="Open navigation"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
           <div class="breadcrumb"><span>Workspace</span><span class="crumb-divider">/</span><strong id="breadcrumb-current">Overview</strong></div>
           <div class="topbar-actions">
+            <a class="shop-preview-link" href="?shop" id="shop-preview-link">Preview customer shop <span>↗</span></a>
             <label class="search-box"><svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.5 4.5"/></svg><input id="global-search" type="search" placeholder="Search anything..." aria-label="Search anything"><kbd>⌘ K</kbd></label>
             <button class="icon-button notification-button" aria-label="Notifications"><svg viewBox="0 0 24 24"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9m-8 12h4"/><circle class="notification-dot" cx="18" cy="5" r="2.5"/></svg></button>
             <button class="top-avatar" aria-label="Jordan Davis profile">JD</button>
@@ -81,6 +82,43 @@
             <div class="page-heading"><div><p class="eyebrow">YOUR COMMUNITY</p><h1>Customers</h1><p class="heading-subtitle">Get to know the people who make your business.</p></div></div>
             <div class="metrics-grid customer-metrics"><article class="metric-card"><div class="metric-top"><span>Total customers</span><span class="metric-icon purple"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.8 20a6.2 6.2 0 0 1 12.4 0"/></svg></span></div><div class="metric-value" id="customers-count">0</div><div class="metric-foot"><span>Unique customers</span></div></article><article class="metric-card"><div class="metric-top"><span>Returning customers</span><span class="metric-icon blue"><svg viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.5 9a7 7 0 0 1 11.6-2L20 9M4 15l2.9 2a7 7 0 0 0 11.6-2"/></svg></span></div><div class="metric-value" id="returning-count">0</div><div class="metric-foot"><span>More than one order</span></div></article><article class="metric-card"><div class="metric-top"><span>Average spend</span><span class="metric-icon green"><svg viewBox="0 0 24 24"><path d="M4 17 9 12l4 4 7-9"/><path d="M15 7h5v5"/></svg></span></div><div class="metric-value" id="customer-spend">UGX 0</div><div class="metric-foot"><span>Per customer</span></div></article></div>
             <article class="panel full-panel"><div class="list-toolbar"><div class="toolbar-search"><svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.5 4.5"/></svg><input id="customers-search" type="search" placeholder="Search customers..."></div><span class="list-note" id="customer-list-count"></span></div><div class="table-wrap"><table><thead><tr><th>CUSTOMER</th><th>EMAIL</th><th>ORDERS</th><th>TOTAL SPENT</th><th>LAST ORDER</th></tr></thead><tbody id="customers-table"></tbody></table></div><div class="empty-state hidden" id="customers-empty"><span>✦</span><strong>No customers found</strong><p>Customers will appear here when you receive orders.</p></div></article>
+          </section>
+
+          <section class="view-panel" id="view-shop">
+            <div class="shop-demo-notice"><strong>Storefront preview</strong><span>Demo only: orders stay in this browser. No real payment is collected.</span></div>
+            <div class="shop-hero">
+              <p class="eyebrow">STUDIO SUPPLY CO.</p>
+              <h1>Everyday pieces, thoughtfully made.</h1>
+              <p>Find a little something to make your day better.</p>
+              <div class="shop-promise"><span>✦ Curated essentials</span><span>✦ Easy pickup or delivery</span><span>✦ Prices in UGX</span></div>
+            </div>
+            <div class="shop-layout">
+              <section class="shop-catalog" aria-labelledby="shop-catalog-title">
+                <div class="shop-section-heading"><div><p class="eyebrow">THE COLLECTION</p><h2 id="shop-catalog-title">Shop all</h2></div><span id="shop-product-count"></span></div>
+                <div class="shop-product-grid" id="shop-product-grid"></div>
+              </section>
+              <aside class="shop-cart panel" aria-labelledby="shop-cart-title">
+                <div class="shop-cart-heading"><h2 id="shop-cart-title">Your bag</h2><span id="shop-cart-count">0 items</span></div>
+                <div class="shop-cart-items" id="shop-cart-items"><p class="shop-cart-empty">Your bag is waiting for something lovely.</p></div>
+                <form id="customer-order-form">
+                  <div class="shop-total"><span>Subtotal</span><strong id="shop-total">UGX 0</strong></div>
+                  <p class="shop-checkout-note">This preview records a pay-later order only. Online checkout is not connected yet.</p>
+                  <div class="shop-form-fields">
+                    <label class="form-field">Your name<input name="customer" required maxlength="70" autocomplete="name" placeholder="e.g. Alex Morgan"></label>
+                    <label class="form-field">Email address<input name="email" type="email" required maxlength="120" autocomplete="email" placeholder="alex@example.com"></label>
+                    <label class="form-field">How would you like your order?
+                      <select name="fulfillment" id="shop-fulfillment" required><option value="delivery">Delivery</option><option value="pickup">Pickup</option></select>
+                    </label>
+                    <label class="form-field" id="shop-address-field">Delivery address<input name="address" required maxlength="180" autocomplete="street-address" placeholder="Area, street, and delivery details"></label>
+                    <label class="form-field">Order note <span class="shop-optional">(optional)</span><input name="note" maxlength="240" placeholder="Anything we should know?"></label>
+                  </div>
+                  <div class="form-error hidden" id="shop-order-error" role="alert"></div>
+                  <button class="button button-primary shop-submit" id="shop-submit" type="submit">Place demo order</button>
+                </form>
+                <div class="shop-confirmation hidden" id="shop-confirmation" role="status" aria-live="polite"></div>
+              </aside>
+            </div>
+            <footer class="page-footer shop-footer"><span>© 2025 Bravo Express</span><span>Demo storefront · no online payments</span></footer>
           </section>
         </div>
       </main>

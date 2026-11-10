@@ -10,6 +10,8 @@ This project includes a GitHub Pages deployment workflow. To publish it at no ho
 
 The free demo supports adding catalog items with whole-shilling UGX price tags, managing inventory, creating orders, and recording cash, Visa, Mastercard, bank-transfer, or other payments already collected. These payment selections do **not** charge a card. Online card checkout is disabled on the hosted demo.
 
+The customer storefront preview is available at `https://okejujohngabriel-prog.github.io/gabriel/?shop` (or use **Preview customer shop** in the dashboard). Customers can build a multi-item bag, choose pickup or delivery, and place a demo pay-later order. Demo orders are saved only in the submitting browser; they are not sent to the business or shared with staff. The public demo does not have a private staff area, shared database, or live payment processing. Do not enter real customer information.
+
 Amounts in the app and optional local Stripe development checkout are in UGX. Existing price values are unchanged. Stripe requires UGX amounts to be sent in its legacy two-decimal representation, so checkout multiplies the displayed whole-shilling price by 100.
 
 Products and orders are saved only in each visitor's browser. The demo has no shared order database or private admin area; visitors will not see each other's orders. To accept actual card payments or share orders between devices, you'll need a separately hosted server/database and payment processing, which may involve fees.
