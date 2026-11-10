@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS public.orders (
   phone text NOT NULL DEFAULT '',
   fulfillment text NOT NULL CHECK (fulfillment IN ('delivery', 'pickup')),
   delivery_address text NOT NULL DEFAULT '' CHECK (char_length(delivery_address) <= 180),
+  delivery_fee integer CHECK (delivery_fee IS NULL OR delivery_fee >= 0),
   note text NOT NULL DEFAULT '' CHECK (char_length(note) <= 240),
   amount bigint NOT NULL CHECK (amount > 0),
   status text NOT NULL DEFAULT 'Pending'
@@ -31,6 +32,8 @@ CREATE TABLE IF NOT EXISTS public.orders (
 );
 
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS phone text NOT NULL DEFAULT '';
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS delivery_fee integer
+  CHECK (delivery_fee IS NULL OR delivery_fee >= 0);
 ALTER TABLE public.orders ALTER COLUMN email DROP NOT NULL;
 ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_phone_check;
 ALTER TABLE public.orders
