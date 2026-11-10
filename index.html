@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#f7f8fc">
+    <title>Bravo Express — Sales &amp; orders</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar">
+        <a class="brand" href="#" aria-label="Bravo Express home">
+          <span class="brand-mark"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3.5 28 10v12L16 28.5 4 22V10L16 3.5Z" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="m10 16 4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span>Bravo Express</span>
+        </a>
+        <div class="workspace-switcher">
+          <span class="workspace-avatar">S</span>
+          <span class="workspace-info"><strong>Studio Supply Co.</strong><small>Business workspace</small></span>
+          <svg class="switcher-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+        </div>
+        <div class="nav-label">WORKSPACE</div>
+        <nav class="main-nav" aria-label="Main navigation">
+          <button class="nav-item active" data-view="dashboard"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg><span>Overview</span></button>
+          <button class="nav-item" data-view="orders"><svg viewBox="0 0 24 24"><path d="M7.5 7.5h13l-1.3 8.2a2 2 0 0 1-2 1.7H9.2a2 2 0 0 1-2-1.7L5.5 4H3"/><circle cx="10" cy="20" r="1"/><circle cx="17" cy="20" r="1"/></svg><span>Orders</span><span class="nav-count" id="order-count">0</span></button>
+          <button class="nav-item" data-view="products"><svg viewBox="0 0 24 24"><path d="m12 3 8.5 4.5v9L12 21l-8.5-4.5v-9L12 3Z"/><path d="m3.8 7.8 8.2 4.4 8.2-4.4M12 12.2V21"/></svg><span>Products</span></button>
+          <button class="nav-item" data-view="customers"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.8 20a6.2 6.2 0 0 1 12.4 0M16 5.2a3.5 3.5 0 0 1 0 6.7m2 2.2a6.2 6.2 0 0 1 3.2 5.4"/></svg><span>Customers</span></button>
+        </nav>
+        <div class="sidebar-bottom">
+          <div class="help-card"><span class="help-icon">✦</span><strong>Need a hand?</strong><p>We’re here to help you grow.</p><button id="help-button">Visit help center <span>↗</span></button></div>
+          <button class="profile-button"><span class="profile-avatar">JD</span><span class="profile-info"><strong>Jordan Davis</strong><small>Admin</small></span><svg class="profile-more" viewBox="0 0 20 20" aria-hidden="true"><circle cx="4" cy="10" r="1"/><circle cx="10" cy="10" r="1"/><circle cx="16" cy="10" r="1"/></svg></button>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <header class="topbar">
+          <button class="mobile-menu" id="mobile-menu" aria-label="Open navigation"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+          <div class="breadcrumb"><span>Workspace</span><span class="crumb-divider">/</span><strong id="breadcrumb-current">Overview</strong></div>
+          <div class="topbar-actions">
+            <label class="search-box"><svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.5 4.5"/></svg><input id="global-search" type="search" placeholder="Search anything..." aria-label="Search anything"><kbd>⌘ K</kbd></label>
+            <button class="icon-button notification-button" aria-label="Notifications"><svg viewBox="0 0 24 24"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9m-8 12h4"/><circle class="notification-dot" cx="18" cy="5" r="2.5"/></svg></button>
+            <button class="top-avatar" aria-label="Jordan Davis profile">JD</button>
+          </div>
+        </header>
+
+        <div class="page-container">
+          <section class="view-panel active" id="view-dashboard">
+            <div class="page-heading">
+              <div><p class="eyebrow" id="today-label">YOUR BUSINESS AT A GLANCE</p><h1>Good morning, Jordan <span class="wave">✦</span></h1><p class="heading-subtitle">Here’s what’s happening with your store today.</p></div>
+              <div class="heading-actions"><button class="button button-secondary" id="export-button"><svg viewBox="0 0 20 20"><path d="M10 3v9m0 0 3-3m-3 3L7 9m-3 4v3h12v-3"/></svg>Export report</button><button class="button button-secondary" data-open-product><span class="plus">+</span> Add item</button><button class="button button-primary" data-open-order><span class="plus">+</span> Create order</button></div>
+            </div>
+            <div class="metrics-grid">
+              <article class="metric-card"><div class="metric-top"><span>Total sales</span><span class="metric-icon purple"><svg viewBox="0 0 24 24"><path d="M12 3v18m5-13a4 4 0 0 0-4-3h-2a3.5 3.5 0 0 0 0 7h2a3.5 3.5 0 0 1 0 7h-2a4 4 0 0 1-4-3"/></svg></span></div>              <div class="metric-value" id="metric-sales">UGX 0</div><div class="metric-foot"><span class="trend up" id="sales-trend">↗ 12.8%</span><span>vs. last month</span></div></article>
+              <article class="metric-card"><div class="metric-top"><span>Orders</span><span class="metric-icon blue"><svg viewBox="0 0 24 24"><path d="M7 4h10l2 4v12H5V8l2-4Z"/><path d="M5 8h14M9 12h6"/></svg></span></div><div class="metric-value" id="metric-orders">0</div><div class="metric-foot"><span class="trend up">↗ 8.2%</span><span>vs. last month</span></div></article>
+              <article class="metric-card"><div class="metric-top"><span>Average order value</span><span class="metric-icon orange"><svg viewBox="0 0 24 24"><path d="M4 17 9 12l4 4 7-9"/><path d="M15 7h5v5"/></svg></span></div><div class="metric-value" id="metric-average">UGX 0</div><div class="metric-foot"><span class="trend up">↗ 4.6%</span><span>vs. last month</span></div></article>
+              <article class="metric-card"><div class="metric-top"><span>Total customers</span><span class="metric-icon green"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.8 20a6.2 6.2 0 0 1 12.4 0M16 5a3.5 3.5 0 0 1 0 6.8m2 2.2a6.2 6.2 0 0 1 3.2 5.4"/></svg></span></div><div class="metric-value" id="metric-customers">0</div><div class="metric-foot"><span class="trend up">↗ 6.1%</span><span>vs. last month</span></div></article>
+            </div>
+            <div class="dashboard-grid">
+              <article class="panel sales-panel"><div class="panel-heading"><div><h2>Sales overview</h2><p>Keep track of your store’s performance</p></div><select class="select-control" id="chart-range" aria-label="Sales chart range"><option value="7">Last 7 days</option><option value="14">Last 14 days</option><option value="30">Last 30 days</option></select></div><div class="chart-summary"><strong id="chart-total">UGX 0</strong><span class="chart-period">Total revenue</span><span class="trend up small-trend">↗ 12.8%</span></div><div class="chart-wrap"><div class="y-axis" id="chart-y-axis"></div><div class="chart-main"><div class="chart-grid-lines"><i></i><i></i><i></i><i></i></div><div class="chart-bars" id="chart-bars"></div><div class="x-axis" id="chart-x-axis"></div></div></div><div class="chart-legend"><span class="legend-dot"></span>Sales</div></article>
+              <article class="panel inventory-panel"><div class="panel-heading"><div><h2>Inventory overview</h2><p>Products that need your attention</p></div><button class="text-button" data-navigate="products">View all <span>→</span></button></div><div class="inventory-stats"><div><strong id="inventory-total">0</strong><span>Total products</span></div><div><strong class="low-stock-number" id="inventory-low">0</strong><span>Low in stock</span></div></div><div class="low-stock-list" id="low-stock-list"></div></article>
+            </div>
+            <article class="panel orders-panel"><div class="panel-heading"><div><h2>Recent orders</h2><p>Stay on top of your latest sales</p></div><button class="text-button" data-navigate="orders">All orders <span>→</span></button></div><div class="table-wrap"><table><thead><tr><th>ORDER</th><th>CUSTOMER</th><th>DATE</th><th>AMOUNT</th><th>PAYMENT</th><th>STATUS</th><th></th></tr></thead><tbody id="recent-orders"></tbody></table></div></article>
+            <footer class="page-footer"><span>© 2025 Bravo Express</span><span>Made for growing businesses <span class="footer-heart">♥</span></span></footer>
+          </section>
+
+          <section class="view-panel" id="view-orders">
+            <div class="page-heading"><div><p class="eyebrow">YOUR STORE</p><h1>Orders</h1><p class="heading-subtitle">Track and manage every order in one place.</p></div><div class="heading-actions"><button class="button button-secondary" id="orders-export">↓ Export</button><button class="button button-primary" data-open-order><span class="plus">+</span> Create order</button></div></div>
+            <article class="panel full-panel"><div class="list-toolbar"><div class="toolbar-search"><svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.5 4.5"/></svg><input id="orders-search" type="search" placeholder="Search orders or customers..."></div><select class="select-control" id="status-filter" aria-label="Filter by order status"><option value="all">All order statuses</option><option>Pending</option><option>Processing</option><option>Shipped</option><option>Delivered</option><option>Cancelled</option></select><select class="select-control" id="payment-filter" aria-label="Filter by payment status"><option value="all">All payments</option><option>Paid</option><option>Unpaid</option><option>Unrecorded</option></select></div><div class="table-wrap"><table><thead><tr><th>ORDER</th><th>CUSTOMER</th><th>DATE</th><th>AMOUNT</th><th>PAYMENT</th><th>STATUS</th><th>ACTIONS</th></tr></thead><tbody id="all-orders"></tbody></table></div><div class="empty-state hidden" id="orders-empty"><span>✦</span><strong>No orders found</strong><p>Try changing your search or create a new order.</p><button class="button button-primary" data-open-order>Create order</button></div></article>
+          </section>
+
+          <section class="view-panel" id="view-products">
+            <div class="page-heading"><div><p class="eyebrow">YOUR CATALOG</p><h1>Products</h1><p class="heading-subtitle">Manage your products, prices, and stock levels.</p></div><div class="heading-actions"><button class="button button-primary" id="add-product-button" data-open-product><span class="plus">+</span> Add item</button></div></div>
+            <div class="metrics-grid product-metrics"><article class="metric-card"><div class="metric-top"><span>Total products</span><span class="metric-icon purple"><svg viewBox="0 0 24 24"><path d="m12 3 8.5 4.5v9L12 21l-8.5-4.5v-9L12 3Z"/><path d="m3.8 7.8 8.2 4.4 8.2-4.4"/></svg></span></div><div class="metric-value" id="products-count">0</div><div class="metric-foot"><span>Across your catalog</span></div></article><article class="metric-card"><div class="metric-top"><span>Inventory value</span><span class="metric-icon green"><svg viewBox="0 0 24 24"><path d="M12 3v18m5-13a4 4 0 0 0-4-3h-2a3.5 3.5 0 0 0 0 7h2a3.5 3.5 0 0 1 0 7h-2a4 4 0 0 1-4-3"/></svg></span></div><div class="metric-value" id="products-value">UGX 0</div><div class="metric-foot"><span>Based on current stock</span></div></article><article class="metric-card"><div class="metric-top"><span>Low stock</span><span class="metric-icon orange"><svg viewBox="0 0 24 24"><path d="M12 3 2.8 19h18.4L12 3Z"/><path d="M12 9v4m0 3h.01"/></svg></span></div><div class="metric-value" id="products-low">0</div><div class="metric-foot"><span>Less than 10 units</span></div></article></div>
+            <article class="panel full-panel"><div class="list-toolbar"><div class="toolbar-search"><svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.5 4.5"/></svg><input id="products-search" type="search" placeholder="Search products..."></div><select class="select-control" id="stock-filter" aria-label="Filter inventory"><option value="all">All stock levels</option><option value="low">Low stock</option><option value="out">Out of stock</option></select></div><div class="table-wrap"><table><thead><tr><th>PRODUCT</th><th>SKU</th><th>PRICE TAG (UGX)</th><th>STOCK</th><th>STATUS</th><th></th></tr></thead><tbody id="products-table"></tbody></table></div><div class="empty-state hidden" id="products-empty"><span>✦</span><strong>No products found</strong><p>Add a product or adjust your filters.</p></div></article>
+          </section>
+
+          <section class="view-panel" id="view-customers">
+            <div class="page-heading"><div><p class="eyebrow">YOUR COMMUNITY</p><h1>Customers</h1><p class="heading-subtitle">Get to know the people who make your business.</p></div></div>
+            <div class="metrics-grid customer-metrics"><article class="metric-card"><div class="metric-top"><span>Total customers</span><span class="metric-icon purple"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.8 20a6.2 6.2 0 0 1 12.4 0"/></svg></span></div><div class="metric-value" id="customers-count">0</div><div class="metric-foot"><span>Unique customers</span></div></article><article class="metric-card"><div class="metric-top"><span>Returning customers</span><span class="metric-icon blue"><svg viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.5 9a7 7 0 0 1 11.6-2L20 9M4 15l2.9 2a7 7 0 0 0 11.6-2"/></svg></span></div><div class="metric-value" id="returning-count">0</div><div class="metric-foot"><span>More than one order</span></div></article><article class="metric-card"><div class="metric-top"><span>Average spend</span><span class="metric-icon green"><svg viewBox="0 0 24 24"><path d="M4 17 9 12l4 4 7-9"/><path d="M15 7h5v5"/></svg></span></div><div class="metric-value" id="customer-spend">UGX 0</div><div class="metric-foot"><span>Per customer</span></div></article></div>
+            <article class="panel full-panel"><div class="list-toolbar"><div class="toolbar-search"><svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.5 4.5"/></svg><input id="customers-search" type="search" placeholder="Search customers..."></div><span class="list-note" id="customer-list-count"></span></div><div class="table-wrap"><table><thead><tr><th>CUSTOMER</th><th>EMAIL</th><th>ORDERS</th><th>TOTAL SPENT</th><th>LAST ORDER</th></tr></thead><tbody id="customers-table"></tbody></table></div><div class="empty-state hidden" id="customers-empty"><span>✦</span><strong>No customers found</strong><p>Customers will appear here when you receive orders.</p></div></article>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <div class="modal-backdrop hidden" id="order-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <div class="modal">
+        <div class="modal-heading"><div><span class="eyebrow">NEW SALE</span><h2 id="modal-title">Create an order</h2></div><button class="modal-close" data-close-modal aria-label="Close dialog">×</button></div>
+        <form id="order-form">
+          <label class="form-field">Customer name<input name="customer" required maxlength="70" placeholder="e.g. Alex Morgan"></label>
+          <label class="form-field">Email address<input name="email" type="email" required maxlength="120" placeholder="alex@example.com"></label>
+          <div class="form-row"><label class="form-field">Product<select name="product" id="order-product" required></select></label><label class="form-field quantity-field">Quantity<input name="quantity" type="number" min="1" step="1" value="1" required></label></div>
+          <label class="form-field">Order status<select name="status"><option>Pending</option><option>Processing</option><option>Shipped</option><option>Delivered</option></select></label>
+          <label class="form-field">Payment option<select name="paymentOption" id="payment-method"><option value="unpaid">Unpaid — pay later</option><option value="paid_cash">Paid — cash</option><option value="paid_visa">Paid — Visa (record only)</option><option value="paid_mastercard">Paid — Mastercard (record only)</option><option value="paid_bank">Paid — bank transfer</option><option value="paid_other">Paid — other method</option><option value="stripe">Pay online by card — Stripe checkout</option></select></label>
+          <p class="payment-note" id="payment-note">Cash, Visa, Mastercard, and transfer options record a payment you have already collected; they do not charge a card. Stripe checkout is optional and may charge processing fees.</p>
+          <div class="order-total"><span>Order total</span><strong id="order-total">UGX 0</strong></div>
+          <div class="form-error hidden" id="order-error" role="alert"></div>
+          <div class="modal-actions"><button class="button button-secondary" type="button" data-close-modal>Cancel</button><button class="button button-primary" id="submit-order" type="submit">Create order</button></div>
+        </form>
+      </div>
+    </div>
+    <div class="modal-backdrop hidden" id="product-modal" role="dialog" aria-modal="true" aria-labelledby="product-modal-title">
+      <div class="modal modal-small">
+        <div class="modal-heading"><div><span class="eyebrow">YOUR CATALOG</span><h2 id="product-modal-title">Add a product</h2></div><button class="modal-close" data-close-modal aria-label="Close dialog">×</button></div>
+        <form id="product-form">
+          <label class="form-field">Product name<input name="name" required maxlength="70" placeholder="e.g. Everyday Tote"></label>
+          <label class="form-field">Category<input name="category" required maxlength="40" placeholder="e.g. Accessories"></label>
+          <div class="form-row"><label class="form-field">Price tag (UGX)<input name="price" type="number" min="1" step="1" required placeholder="e.g. 25,000"></label><label class="form-field">Initial stock<input name="stock" type="number" min="0" step="1" required placeholder="0"></label></div>
+          <div class="form-error hidden" id="product-error" role="alert"></div>
+          <div class="modal-actions"><button class="button button-secondary" type="button" data-close-modal>Cancel</button><button class="button button-primary" type="submit">Add product</button></div>
+        </form>
+      </div>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="app.js"></script>
+  </body>
+</html>
