@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=online-orders-2">
+    <link rel="stylesheet" href="styles.css?v=delivery-fees-1">
   </head>
   <body class="booting">
     <section class="login-screen hidden" id="login-screen" aria-labelledby="login-title">
@@ -82,7 +82,7 @@
 
           <section class="view-panel" id="view-orders">
             <div class="page-heading"><div><p class="eyebrow">YOUR STORE</p><h1>Orders</h1><p class="heading-subtitle">Track and manage every order in one place.</p></div><div class="heading-actions"><button class="button button-secondary" id="orders-export">↓ Export</button><button class="button button-primary" data-open-order><span class="plus">+</span> Create order</button></div></div>
-            <article class="panel full-panel"><div class="list-toolbar"><div class="toolbar-search"><svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.5 4.5"/></svg><input id="orders-search" type="search" placeholder="Search orders or customers..."></div><select class="select-control" id="status-filter" aria-label="Filter by order status"><option value="all">All order statuses</option><option>Pending</option><option>Processing</option><option>Shipped</option><option>Delivered</option><option>Cancelled</option></select><select class="select-control" id="payment-filter" aria-label="Filter by payment status"><option value="all">All payments</option><option>Paid</option><option>Unpaid</option><option>Unrecorded</option></select></div><div class="table-wrap"><table><thead><tr><th>ORDER</th><th>CUSTOMER</th><th>DATE</th><th>AMOUNT</th><th>PAYMENT</th><th>STATUS</th><th>ACTIONS</th></tr></thead><tbody id="all-orders"></tbody></table></div><div class="empty-state hidden" id="orders-empty"><span>✦</span><strong>No orders found</strong><p>Try changing your search or create a new order.</p><button class="button button-primary" data-open-order>Create order</button></div></article>
+            <article class="panel full-panel"><div class="list-toolbar"><div class="toolbar-search"><svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.5 4.5"/></svg><input id="orders-search" type="search" placeholder="Search orders or customers..."></div><select class="select-control" id="status-filter" aria-label="Filter by order status"><option value="all">All order statuses</option><option>Pending</option><option>Processing</option><option>Shipped</option><option>Delivered</option><option>Cancelled</option></select><select class="select-control" id="payment-filter" aria-label="Filter by payment status"><option value="all">All payments</option><option>Paid</option><option>Unpaid</option><option>Unrecorded</option></select></div><div class="table-wrap"><table><thead><tr><th>ORDER</th><th>CUSTOMER</th><th>DATE</th><th>AMOUNT</th><th>DELIVERY FEE</th><th>PAYMENT</th><th>STATUS</th><th>ACTIONS</th></tr></thead><tbody id="all-orders"></tbody></table></div><div class="empty-state hidden" id="orders-empty"><span>✦</span><strong>No orders found</strong><p>Try changing your search or create a new order.</p><button class="button button-primary" data-open-order>Create order</button></div></article>
           </section>
 
           <section class="view-panel" id="view-products">
@@ -116,6 +116,7 @@
                 <form id="customer-order-form">
                   <div class="shop-total"><span>Subtotal</span><strong id="shop-total">UGX 0</strong></div>
                   <p class="shop-checkout-note" id="shop-checkout-note">Demo only: no payment will be collected.</p>
+                  <p class="shop-delivery-note">For delivery, the store will confirm the fee with you by phone. The subtotal above does not include delivery.</p>
                   <div class="shop-form-fields">
                     <label class="form-field">Your name<input name="customer" required maxlength="70" autocomplete="name" placeholder="e.g. Alex Morgan"></label>
                     <label class="form-field">Telephone contact<input name="phone" type="tel" required maxlength="24" pattern="\+?[0-9\s\(\)\-]{7,24}" title="Enter a phone number with 7 to 15 digits, optionally using spaces, parentheses, or hyphens." autocomplete="tel" placeholder="+256 700 000 000"></label>
@@ -166,6 +167,6 @@
       </div>
     </div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="app.js?v=online-orders-2"></script>
+    <script src="app.js?v=delivery-fees-1"></script>
   </body>
 </html>

@@ -148,9 +148,10 @@ function renderOrderRows(orders, target) {
   target.innerHTML = orders.map((order, index) => `
     <tr>
       <td class="order-id">#${escapeHtml(order.id)}</td>
-      <td>${customerMarkup(order.customer, index, [order.phone || "Phone not provided", orderItemsSummary(order)].join(" · "))}</td>
+      <td>${customerMarkup(order.customer, index, orderItemsSummary(order))}<small class="order-contact">${order.phone ? `<a href="tel:${escapeHtml(order.phone)}">${escapeHtml(order.phone)}</a>` : "Phone not provided"}</small></td>
       <td>${formatDate(order.createdAt)}</td>
       <td>${money(order.amount)}</td>
+      ${target.id === "all-orders" ? `<td>${order.fulfillment === "delivery" ? `<div class="delivery-fee-editor"><input type="number" min="0" max="100000000" step="1" value="${order.deliveryFee ?? ""}" data-delivery-fee="${escapeHtml(order.id)}" aria-label="Delivery fee for ${escapeHtml(order.id)}" ${order.paymentStatus === "Paid" ? "disabled" : ""}><button type="button" class="delivery-fee-save" data-save-delivery-fee="${escapeHtml(order.id)}" ${order.paymentStatus === "Paid" ? "disabled" : ""}>${order.deliveryFee === null || order.deliveryFee === undefined ? "Confirm" : "Save"}</button><small>${order.deliveryFee === null || order.deliveryFee === undefined ? "Fee not confirmed" : `Confirmed · ${money(order.deliveryFee)}`}</small></div>` : `<span class="list-note">Pickup</span>`}</td>` : ""}
       <td>${target.id === "all-orders" ? `<select class="payment-select" data-order-payment="${escapeHtml(order.id)}" aria-label="Update payment for ${escapeHtml(order.id)}">${paymentOptions.map((option) => `<option value="${option.value}"${paymentOptionFor(order) === option.value ? " selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}</select>` : `<span class="payment-pill ${order.paymentStatus === "Paid" ? "payment-paid" : order.paymentStatus === "Unpaid" ? "payment-unpaid" : "payment-unrecorded"}">${escapeHtml(order.paymentStatus || "Unrecorded")}${order.paymentMethod ? ` · ${escapeHtml(order.paymentMethod)}` : ""}</span>`}</td>
       <td>${target.id === "all-orders" ? `<select class="status-select status-${order.status.toLowerCase()}" data-order-status="${escapeHtml(order.id)}" aria-label="Update status for ${escapeHtml(order.id)}">${["Pending", "Processing", "Shipped", "Delivered", "Cancelled"].map((status) => `<option${status === order.status ? " selected" : ""}>${status}</option>`).join("")}</select>` : statusMarkup(order.status)}</td>
       <td>${target.id === "all-orders" ? `<button class="row-action" data-delete-order="${escapeHtml(order.id)}" aria-label="Delete order ${escapeHtml(order.id)}" title="Delete order">···</button>` : ""}</td>
@@ -414,6 +415,7 @@ async function submitCustomerOrder(event) {
   if (!demoMode) {
     const submitButton = $("#shop-submit");
     const customerName = form.elements.customer.value.trim();
+    const customerPhone = form.elements.phone.value.trim();
     submitButton.disabled = true;
     error.classList.add("hidden");
     try {
@@ -440,7 +442,10 @@ async function submitCustomerOrder(event) {
       customerOrderForm.elements.address.required = true;
       $("#shop-order-error").classList.add("hidden");
       $("#customer-order-form").classList.add("hidden");
-      $("#shop-confirmation").innerHTML = `<span class="shop-confirmation-icon">✓</span><h3>Thanks, ${escapeHtml(customerName)}!</h3><p>Your order <strong>#${escapeHtml(result.orderId)}</strong> has been sent to the store.</p><span class="shop-confirmation-demo">Payment is due later. No online payment was taken.</span><button class="button button-secondary" type="button" data-shop-new-order>Continue shopping</button>`;
+      const deliveryMessage = fulfillment === "delivery"
+        ? `The store will contact you at ${escapeHtml(customerPhone)} to confirm the delivery fee. Your subtotal does not include delivery.`
+        : "Your order is ready for pickup. No delivery fee applies.";
+      $("#shop-confirmation").innerHTML = `<span class="shop-confirmation-icon">✓</span><h3>Thanks, ${escapeHtml(customerName)}!</h3><p>Your order <strong>#${escapeHtml(result.orderId)}</strong> has been sent to the store.</p><span class="shop-confirmation-demo">${deliveryMessage} Payment is due later. No online payment was taken.</span><button class="button button-secondary" type="button" data-shop-new-order>Continue shopping</button>`;
       $("#shop-confirmation").classList.remove("hidden");
       renderCustomerShop();
     } catch (checkoutError) {
@@ -762,6 +767,41 @@ async function setOrderPayment(orderId, paymentOption) {
   showToast(`Order ${order.id} payment marked ${payment.status.toLowerCase()}.`);
 }
 
+async function setOrderDeliveryFee(orderId) {
+  const order = state.orders.find((item) => item.id === orderId);
+  const input = $$("[data-delivery-fee]").find((item) => item.dataset.deliveryFee === orderId);
+  if (!order || !input || order.fulfillment !== "delivery") return;
+  const deliveryFee = input.value === "" ? null : Number(input.value);
+  if (deliveryFee !== null &&
+      (!Number.isSafeInteger(deliveryFee) || deliveryFee < 0 || deliveryFee > 100_000_000)) {
+    showToast("Enter a whole-number delivery fee between UGX 0 and UGX 100,000,000.", true);
+    return;
+  }
+  if (order.paymentStatus === "Paid") {
+    showToast("A delivery fee cannot be changed after payment is recorded.", true);
+    return;
+  }
+  if (!demoMode) {
+    try {
+      await apiRequest(`/api/admin/orders/${encodeURIComponent(orderId)}/delivery-fee`, {
+        method: "PATCH",
+        body: JSON.stringify({ deliveryFee })
+      });
+      await refreshAdminState();
+      showToast(deliveryFee === null ? "Delivery fee confirmation cleared." : "Delivery fee saved to the order.");
+    } catch (error) {
+      showToast(error.message, true);
+    }
+    return;
+  }
+  const subtotal = orderItemsFor(order).reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+  order.deliveryFee = deliveryFee;
+  order.amount = subtotal + (deliveryFee ?? 0);
+  saveState();
+  renderAll();
+  showToast(deliveryFee === null ? "Delivery fee confirmation cleared." : "Delivery fee saved to the order.");
+}
+
 async function setOrderStatus(orderId, status) {
   const order = state.orders.find((item) => item.id === orderId);
   if (!order || order.status === status) return;
@@ -859,10 +899,11 @@ async function deleteProduct(productId) {
 }
 
 function exportOrders() {
-  const rows = [["Order", "Customer", "Telephone", "Product", "Quantity", "Date", "Amount (UGX)", "Payment status", "Payment method", "Status"]];
+  const rows = [["Order", "Customer", "Telephone", "Product", "Quantity", "Date", "Amount (UGX)", "Delivery fee (UGX)", "Payment status", "Payment method", "Status"]];
   sortedOrders().forEach((order) => rows.push([
     order.id, order.customer, order.phone || "", orderItemsSummary(order),
-    order.quantity, formatDate(order.createdAt), order.amount.toFixed(2), order.paymentStatus || "Unrecorded",
+    order.quantity, formatDate(order.createdAt), order.amount.toFixed(2), order.deliveryFee ?? "",
+    order.paymentStatus || "Unrecorded",
     order.paymentMethod || "", order.status
   ]));
   const csv = rows.map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(",")).join("\r\n");
@@ -939,12 +980,14 @@ if (allOrders) allOrders.addEventListener("change", (event) => {
 if (typeof document !== "undefined") {
   document.addEventListener("click", (event) => {
     const deleteOrderButton = event.target.closest("[data-delete-order]");
+    const saveDeliveryFeeButton = event.target.closest("[data-save-delivery-fee]");
     const deleteProductButton = event.target.closest("[data-delete-product]");
     const addToBagButton = event.target.closest("[data-shop-add]");
     const changeQuantityButton = event.target.closest("[data-shop-quantity]");
     const removeFromBagButton = event.target.closest("[data-shop-remove]");
     const newShopOrderButton = event.target.closest("[data-shop-new-order]");
     if (deleteOrderButton) deleteOrder(deleteOrderButton.dataset.deleteOrder);
+    if (saveDeliveryFeeButton) setOrderDeliveryFee(saveDeliveryFeeButton.dataset.saveDeliveryFee);
     if (deleteProductButton) deleteProduct(deleteProductButton.dataset.deleteProduct);
     if (addToBagButton) updateShopCart(addToBagButton.dataset.shopAdd, 1);
     if (changeQuantityButton) updateShopCart(changeQuantityButton.dataset.shopQuantity, Number(changeQuantityButton.dataset.step));

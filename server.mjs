@@ -20,6 +20,7 @@ import {
   markStripeOrderPaid,
   productHasOrderHistory,
   setOrderStatus,
+  updateOrderDeliveryFee,
   updateOrderPayment
 } from "./database.mjs";
 
@@ -267,6 +268,7 @@ function publicOrder(order) {
     items: orderItems(order),
     fulfillment: order.fulfillment,
     deliveryAddress: order.delivery_address,
+    deliveryFee: order.delivery_fee === null || order.delivery_fee === undefined ? null : Number(order.delivery_fee),
     note: order.note,
     amount: order.amount,
     status: order.status,
@@ -563,6 +565,30 @@ async function handleApi(request, response, url) {
       sendError(response, 404, "Order not found.");
       return;
     }
+    sendJson(response, 200, { updated: true });
+    return;
+  }
+
+  const deliveryFeeMatch = path.match(/^\/api\/admin\/orders\/([^/]+)\/delivery-fee$/);
+  if (method === "PATCH" && deliveryFeeMatch) {
+    if (!requestOriginIsValid(request)) {
+      sendError(response, 403, "Request origin was not accepted.");
+      return;
+    }
+    const data = await readJson(request);
+    if (!data || typeof data !== "object" || Array.isArray(data)) {
+      sendError(response, 400, "A delivery fee value is required.");
+      return;
+    }
+    const deliveryFee = data.deliveryFee === null || data.deliveryFee === ""
+      ? null
+      : Number(data.deliveryFee);
+    if (deliveryFee !== null &&
+        (!Number.isSafeInteger(deliveryFee) || deliveryFee < 0 || deliveryFee > 100_000_000)) {
+      sendError(response, 400, "Enter a whole-number delivery fee between UGX 0 and UGX 100,000,000.");
+      return;
+    }
+    await updateOrderDeliveryFee(decodeURIComponent(deliveryFeeMatch[1]), deliveryFee);
     sendJson(response, 200, { updated: true });
     return;
   }

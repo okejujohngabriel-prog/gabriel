@@ -244,6 +244,38 @@ export async function updateOrderPayment(orderId, paymentStatus, paymentMethod) 
   return result.rowCount > 0;
 }
 
+export async function updateOrderDeliveryFee(orderId, deliveryFee) {
+  return transaction(async (client) => {
+    const result = await query(
+      client,
+      `SELECT id, fulfillment, payment_status
+       FROM public.orders WHERE id = $1 FOR UPDATE`,
+      [orderId]
+    );
+    const order = result.rows[0];
+    if (!order) throw Object.assign(new Error("Order not found."), { status: 404 });
+    if (order.fulfillment !== "delivery") {
+      throw Object.assign(new Error("Delivery fees apply only to delivery orders."), { status: 409 });
+    }
+    if (order.payment_status === "Paid") {
+      throw Object.assign(new Error("A delivery fee cannot be changed after payment is recorded."), { status: 409 });
+    }
+
+    const subtotal = await query(
+      client,
+      `SELECT COALESCE(SUM(quantity::bigint * unit_price::bigint), 0) AS subtotal
+       FROM public.order_items WHERE order_id = $1`,
+      [orderId]
+    );
+    const amount = Number(subtotal.rows[0].subtotal) + (deliveryFee ?? 0);
+    await query(
+      client,
+      "UPDATE public.orders SET delivery_fee = $1, amount = $2 WHERE id = $3",
+      [deliveryFee, amount, orderId]
+    );
+  });
+}
+
 export async function cancelOrder(orderId) {
   return transaction(async (client) => {
     const result = await query(
