@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS public.products (
 CREATE TABLE IF NOT EXISTS public.orders (
   id text PRIMARY KEY,
   customer text NOT NULL CHECK (char_length(customer) BETWEEN 1 AND 70),
-  email text NOT NULL CHECK (char_length(email) BETWEEN 3 AND 120),
+  email text,
+  phone text NOT NULL DEFAULT '',
   fulfillment text NOT NULL CHECK (fulfillment IN ('delivery', 'pickup')),
   delivery_address text NOT NULL DEFAULT '' CHECK (char_length(delivery_address) <= 180),
   note text NOT NULL DEFAULT '' CHECK (char_length(note) <= 240),
@@ -28,6 +29,19 @@ CREATE TABLE IF NOT EXISTS public.orders (
   stripe_session_id text UNIQUE,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS phone text NOT NULL DEFAULT '';
+ALTER TABLE public.orders ALTER COLUMN email DROP NOT NULL;
+ALTER TABLE public.orders DROP CONSTRAINT IF EXISTS orders_phone_check;
+ALTER TABLE public.orders
+  ADD CONSTRAINT orders_phone_check
+  CHECK (
+    phone = '' OR (
+      char_length(phone) BETWEEN 7 AND 24
+      AND phone ~ '^\+?[0-9 ().-]+$'
+      AND char_length(regexp_replace(phone, '[^0-9]', '', 'g')) BETWEEN 7 AND 15
+    )
+  );
 
 CREATE TABLE IF NOT EXISTS public.order_items (
   order_id text NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
