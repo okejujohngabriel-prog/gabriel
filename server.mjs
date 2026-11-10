@@ -177,16 +177,18 @@ function recordFailedLogin(address) {
 
 function validateContact(data) {
   const customer = String(data.customer || "").trim();
-  const email = String(data.email || "").trim();
+  const phone = String(data.phone || "").trim();
+  const phoneDigits = phone.replace(/\D/g, "");
   const fulfillment = String(data.fulfillment || "");
   const address = String(data.address || "").trim();
   const note = String(data.note || "").trim();
-  if (!customer || customer.length > 70 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 120 ||
+  if (!customer || customer.length > 70 || phone.length > 24 || !/^\+?[0-9\s().-]+$/.test(phone) ||
+      phoneDigits.length < 7 || phoneDigits.length > 15 ||
       !["delivery", "pickup"].includes(fulfillment) || (fulfillment === "delivery" && (!address || address.length > 180)) ||
       note.length > 240) {
-    throw Object.assign(new Error("Enter a valid name, email, and pickup or delivery details."), { status: 400 });
+    throw Object.assign(new Error("Enter a valid name, telephone number, and pickup or delivery details."), { status: 400 });
   }
-  return { customer, email, fulfillment, address: fulfillment === "delivery" ? address : "", note };
+  return { customer, phone, fulfillment, address: fulfillment === "delivery" ? address : "", note };
 }
 
 function validateItems(items) {
@@ -259,7 +261,7 @@ function publicOrder(order) {
   return {
     id: order.id,
     customer: order.customer,
-    email: order.email,
+    phone: order.phone || "",
     productId: order.order_items?.[0]?.product_id,
     quantity: (order.order_items || []).reduce((sum, item) => sum + item.quantity, 0),
     items: orderItems(order),
@@ -309,7 +311,6 @@ async function createCustomerCheckout(request, response) {
   const stripeValues = {
     mode: "payment",
     "payment_method_types[0]": "card",
-    customer_email: contact.email,
     success_url: new URL("/?shop&payment=success&session_id={CHECKOUT_SESSION_ID}", appUrl).href,
     cancel_url: new URL("/?shop&payment=cancelled&session_id={CHECKOUT_SESSION_ID}", appUrl).href,
     ...Object.assign({}, ...lineItems)

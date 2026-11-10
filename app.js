@@ -11,16 +11,16 @@ const initialState = {
     { id: "p6", name: "Canvas Market Bag", category: "Bags & accessories", sku: "BAG-009", price: 29, stock: 0, icon: "⌑" }
   ],
   orders: [
-    { id: "OR-1048", customer: "Olivia Rhye", email: "olivia@example.com", productId: "p3", quantity: 1, amount: 36, status: "Delivered", createdAt: daysAgo(0) },
-    { id: "OR-1047", customer: "Phoenix Baker", email: "phoenix@example.com", productId: "p1", quantity: 2, amount: 96, status: "Processing", createdAt: daysAgo(0) },
-    { id: "OR-1046", customer: "Lana Steiner", email: "lana@example.com", productId: "p5", quantity: 1, amount: 32, status: "Shipped", createdAt: daysAgo(1) },
-    { id: "OR-1045", customer: "Demi Wilkinson", email: "demi@example.com", productId: "p2", quantity: 1, amount: 72, status: "Pending", createdAt: daysAgo(2) },
-    { id: "OR-1044", customer: "Candice Wu", email: "candice@example.com", productId: "p3", quantity: 2, amount: 72, status: "Delivered", createdAt: daysAgo(3) },
-    { id: "OR-1043", customer: "Natali Craig", email: "natali@example.com", productId: "p4", quantity: 1, amount: 24, status: "Delivered", createdAt: daysAgo(4) },
-    { id: "OR-1042", customer: "Drew Cano", email: "drew@example.com", productId: "p5", quantity: 2, amount: 64, status: "Processing", createdAt: daysAgo(6) },
-    { id: "OR-1041", customer: "Orlando Diggs", email: "orlando@example.com", productId: "p3", quantity: 1, amount: 36, status: "Delivered", createdAt: daysAgo(8) },
-    { id: "OR-1040", customer: "Andi Lane", email: "andi@example.com", productId: "p1", quantity: 1, amount: 48, status: "Delivered", createdAt: daysAgo(12) },
-    { id: "OR-1039", customer: "Kate Morrison", email: "kate@example.com", productId: "p5", quantity: 1, amount: 32, status: "Cancelled", createdAt: daysAgo(18) }
+    { id: "OR-1048", customer: "Olivia Rhye", phone: "", productId: "p3", quantity: 1, amount: 36, status: "Delivered", createdAt: daysAgo(0) },
+    { id: "OR-1047", customer: "Phoenix Baker", phone: "", productId: "p1", quantity: 2, amount: 96, status: "Processing", createdAt: daysAgo(0) },
+    { id: "OR-1046", customer: "Lana Steiner", phone: "", productId: "p5", quantity: 1, amount: 32, status: "Shipped", createdAt: daysAgo(1) },
+    { id: "OR-1045", customer: "Demi Wilkinson", phone: "", productId: "p2", quantity: 1, amount: 72, status: "Pending", createdAt: daysAgo(2) },
+    { id: "OR-1044", customer: "Candice Wu", phone: "", productId: "p3", quantity: 2, amount: 72, status: "Delivered", createdAt: daysAgo(3) },
+    { id: "OR-1043", customer: "Natali Craig", phone: "", productId: "p4", quantity: 1, amount: 24, status: "Delivered", createdAt: daysAgo(4) },
+    { id: "OR-1042", customer: "Drew Cano", phone: "", productId: "p5", quantity: 2, amount: 64, status: "Processing", createdAt: daysAgo(6) },
+    { id: "OR-1041", customer: "Orlando Diggs", phone: "", productId: "p3", quantity: 1, amount: 36, status: "Delivered", createdAt: daysAgo(8) },
+    { id: "OR-1040", customer: "Andi Lane", phone: "", productId: "p1", quantity: 1, amount: 48, status: "Delivered", createdAt: daysAgo(12) },
+    { id: "OR-1039", customer: "Kate Morrison", phone: "", productId: "p5", quantity: 1, amount: 32, status: "Cancelled", createdAt: daysAgo(18) }
   ]
 };
 
@@ -148,7 +148,7 @@ function renderOrderRows(orders, target) {
   target.innerHTML = orders.map((order, index) => `
     <tr>
       <td class="order-id">#${escapeHtml(order.id)}</td>
-      <td>${customerMarkup(order.customer, index, orderItemsSummary(order))}</td>
+      <td>${customerMarkup(order.customer, index, [order.phone || "Phone not provided", orderItemsSummary(order)].join(" · "))}</td>
       <td>${formatDate(order.createdAt)}</td>
       <td>${money(order.amount)}</td>
       <td>${target.id === "all-orders" ? `<select class="payment-select" data-order-payment="${escapeHtml(order.id)}" aria-label="Update payment for ${escapeHtml(order.id)}">${paymentOptions.map((option) => `<option value="${option.value}"${paymentOptionFor(order) === option.value ? " selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}</select>` : `<span class="payment-pill ${order.paymentStatus === "Paid" ? "payment-paid" : order.paymentStatus === "Unpaid" ? "payment-unpaid" : "payment-unrecorded"}">${escapeHtml(order.paymentStatus || "Unrecorded")}${order.paymentMethod ? ` · ${escapeHtml(order.paymentMethod)}` : ""}</span>`}</td>
@@ -239,7 +239,7 @@ function renderOrders() {
   const status = statusFilter.value;
   const payment = paymentFilter.value;
   const filtered = sortedOrders().filter((order) => {
-    const matchesQuery = `${order.id} ${order.customer} ${order.email}`.toLowerCase().includes(query);
+    const matchesQuery = `${order.id} ${order.customer} ${order.phone || ""}`.toLowerCase().includes(query);
     const matchesPayment = payment === "all" || (payment === "Unrecorded" ? !order.paymentStatus : order.paymentStatus === payment);
 
     return matchesQuery && matchesPayment && (status === "all" || order.status === status);
@@ -279,8 +279,9 @@ function renderProducts() {
 function getCustomers() {
   const customerMap = new Map();
   for (const order of state.orders) {
-    const key = order.email.toLowerCase();
-    const customer = customerMap.get(key) || { name: order.customer, email: order.email, orders: 0, spent: 0, lastOrder: order.createdAt };
+    const phone = order.phone || "";
+    const key = phone || order.id;
+    const customer = customerMap.get(key) || { name: order.customer, phone, orders: 0, spent: 0, lastOrder: order.createdAt };
     customer.orders += 1;
     if (isRecognizedSale(order)) customer.spent += order.amount;
     if (new Date(order.createdAt) > new Date(customer.lastOrder)) customer.lastOrder = order.createdAt;
@@ -301,14 +302,14 @@ function renderCustomers() {
 
   const allCustomers = getCustomers();
   const query = customersSearch.value.trim().toLowerCase();
-  const customers = allCustomers.filter((customer) => `${customer.name} ${customer.email}`.toLowerCase().includes(query));
+  const customers = allCustomers.filter((customer) => `${customer.name} ${customer.phone}`.toLowerCase().includes(query));
   const returning = allCustomers.filter((customer) => customer.orders > 1).length;
   const totalSpend = allCustomers.reduce((sum, customer) => sum + customer.spent, 0);
   customersCount.textContent = String(allCustomers.length);
   returningCount.textContent = String(returning);
   customerSpend.textContent = money(allCustomers.length ? totalSpend / allCustomers.length : 0);
   customerListCount.textContent = `${customers.length} ${customers.length === 1 ? "customer" : "customers"}`;
-  customersTable.innerHTML = customers.map((customer, index) => `<tr><td>${customerMarkup(customer.name, index)}</td><td>${escapeHtml(customer.email)}</td><td>${customer.orders}</td><td>${money(customer.spent)}</td><td>${formatDate(customer.lastOrder)}</td></tr>`).join("");
+  customersTable.innerHTML = customers.map((customer, index) => `<tr><td>${customerMarkup(customer.name, index)}</td><td>${escapeHtml(customer.phone || "Not provided")}</td><td>${customer.orders}</td><td>${money(customer.spent)}</td><td>${formatDate(customer.lastOrder)}</td></tr>`).join("");
   customersEmpty.classList.toggle("hidden", customers.length > 0);
 }
 
@@ -420,7 +421,7 @@ async function submitCustomerOrder(event) {
         method: "POST",
         body: JSON.stringify({
           customer: customerName,
-          email: form.elements.email.value.trim(),
+          phone: form.elements.phone.value.trim(),
           fulfillment,
           address,
           note: form.elements.note.value.trim(),
@@ -462,7 +463,7 @@ async function submitCustomerOrder(event) {
   state.orders.unshift({
     id: orderId,
     customer: form.elements.customer.value.trim(),
-    email: form.elements.email.value.trim(),
+    phone: form.elements.phone.value.trim(),
     productId: orderItems[0].productId,
     quantity: orderItems.reduce((sum, item) => sum + item.quantity, 0),
     items: orderItems,
@@ -544,7 +545,7 @@ async function createOrder(event) {
         method: "POST",
         body: JSON.stringify({
           customer: form.elements.customer.value.trim(),
-          email: form.elements.email.value.trim(),
+          phone: form.elements.phone.value.trim(),
           items: [{ productId: product.id, quantity }],
           paymentStatus: payment.status,
           paymentMethod: payment.method
@@ -582,7 +583,7 @@ function saveOrder(form, product, quantity, paymentOption, status, orderId) {
   state.orders.unshift({
     id: orderId || `OR-${orderNumber}`,
     customer: form.elements.customer.value.trim(),
-    email: form.elements.email.value.trim(),
+    phone: form.elements.phone.value.trim(),
     productId: product.id,
     quantity,
     amount: product.price * quantity,
@@ -610,7 +611,7 @@ async function startCardCheckout(form, product, quantity, error) {
       body: JSON.stringify({
         orderId: `OR-${Math.max(1048, ...state.orders.map((order) => Number(order.id.replace(/\D/g, "")) || 0)) + 1}`,
         customer: form.elements.customer.value.trim(),
-        email: form.elements.email.value.trim(),
+        phone: form.elements.phone.value.trim(),
         productId: product.id,
         quantity,
         status: form.elements.status.value
@@ -672,7 +673,7 @@ async function completeCardCheckout() {
       if (!Number.isInteger(quantity) || quantity < 1) throw new Error("Payment succeeded, but the order quantity is invalid. Contact the store administrator.");
       const form = $("#order-form");
       form.elements.customer.value = result.order.customer;
-      form.elements.email.value = result.order.email;
+      form.elements.phone.value = result.order.phone;
       const hadEnoughStock = quantity <= product.stock;
       saveOrder(form, product, quantity, "paid_other", result.order.status, result.order.id);
       const savedOrder = state.orders.find((order) => order.id === result.order.id);
@@ -858,9 +859,9 @@ async function deleteProduct(productId) {
 }
 
 function exportOrders() {
-  const rows = [["Order", "Customer", "Email", "Product", "Quantity", "Date", "Amount (UGX)", "Payment status", "Payment method", "Status"]];
+  const rows = [["Order", "Customer", "Telephone", "Product", "Quantity", "Date", "Amount (UGX)", "Payment status", "Payment method", "Status"]];
   sortedOrders().forEach((order) => rows.push([
-    order.id, order.customer, order.email, orderItemsSummary(order),
+    order.id, order.customer, order.phone || "", orderItemsSummary(order),
     order.quantity, formatDate(order.createdAt), order.amount.toFixed(2), order.paymentStatus || "Unrecorded",
     order.paymentMethod || "", order.status
   ]));

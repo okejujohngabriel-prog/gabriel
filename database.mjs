@@ -156,14 +156,14 @@ export async function createOrder(contact, items, paymentStatus, paymentMethod) 
     const orderResult = await query(
       client,
       `INSERT INTO public.orders (
-         id, customer, email, fulfillment, delivery_address, note, amount,
+         id, customer, phone, fulfillment, delivery_address, note, amount,
          payment_status, payment_method
        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
       [
         orderId,
         contact.customer.trim(),
-        contact.email.trim().toLowerCase(),
+        contact.phone,
         contact.fulfillment,
         contact.fulfillment === "delivery" ? contact.address.trim() : "",
         contact.note.trim(),
