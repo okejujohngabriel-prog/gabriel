@@ -8,7 +8,7 @@ The Render Blueprint in [`render.yaml`](./render.yaml) uses the existing free we
 
 The Blueprint generates a staff password and session secret. After deployment, find the staff password in the `ADMIN_PASSWORD` environment variable on the Render service. Sign in with username `staff`. Keep the password private and change it before using any production hosting.
 
-The app applies [`database/schema.sql`](./database/schema.sql) when the Render service starts. Card payments are not enabled unless Stripe secrets are configured.
+The app applies [`database/schema.sql`](./database/schema.sql) when the Render service starts. Customers can place shared orders and pay later; no card payment is taken unless Stripe secrets are configured.
 
 ## Local development
 

@@ -47,6 +47,7 @@ let activeView = "dashboard";
 let customerCart = new Map();
 let toastTimer;
 let onlinePaymentsAvailable = false;
+let onlineOrdersAvailable = false;
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -366,7 +367,7 @@ function renderCustomerShop() {
   const total = lines.reduce((sum, line) => sum + line.product.price * line.quantity, 0);
   $("#shop-cart-count").textContent = `${itemCount} ${itemCount === 1 ? "item" : "items"}`;
   $("#shop-total").textContent = money(total);
-  $("#shop-submit").disabled = !lines.length || (!demoMode && !onlinePaymentsAvailable);
+  $("#shop-submit").disabled = !lines.length || (!demoMode && !onlineOrdersAvailable);
 }
 
 function updateShopCart(productId, step) {
@@ -411,13 +412,14 @@ async function submitCustomerOrder(event) {
 
   if (!demoMode) {
     const submitButton = $("#shop-submit");
+    const customerName = form.elements.customer.value.trim();
     submitButton.disabled = true;
     error.classList.add("hidden");
     try {
       const result = await apiRequest("/api/orders", {
         method: "POST",
         body: JSON.stringify({
-          customer: form.elements.customer.value.trim(),
+          customer: customerName,
           email: form.elements.email.value.trim(),
           fulfillment,
           address,
@@ -425,7 +427,21 @@ async function submitCustomerOrder(event) {
           items: items.map(({ product, quantity }) => ({ productId: product.id, quantity }))
         })
       });
-      window.location.assign(result.checkoutUrl);
+      if (result.checkoutUrl) {
+        window.location.assign(result.checkoutUrl);
+        return;
+      }
+      for (const { product, quantity } of items) product.stock -= quantity;
+      customerCart.clear();
+      form.reset();
+      $("#shop-fulfillment").value = "delivery";
+      $("#shop-address-field").classList.remove("hidden");
+      customerOrderForm.elements.address.required = true;
+      $("#shop-order-error").classList.add("hidden");
+      $("#customer-order-form").classList.add("hidden");
+      $("#shop-confirmation").innerHTML = `<span class="shop-confirmation-icon">✓</span><h3>Thanks, ${escapeHtml(customerName)}!</h3><p>Your order <strong>#${escapeHtml(result.orderId)}</strong> has been sent to the store.</p><span class="shop-confirmation-demo">Payment is due later. No online payment was taken.</span><button class="button button-secondary" type="button" data-shop-new-order>Continue shopping</button>`;
+      $("#shop-confirmation").classList.remove("hidden");
+      renderCustomerShop();
     } catch (checkoutError) {
       error.textContent = checkoutError.message;
       error.classList.remove("hidden");
@@ -1040,6 +1056,7 @@ async function initializeApp() {
         apiRequest("/api/health"),
         apiRequest("/api/products")
       ]);
+      onlineOrdersAvailable = health.configured;
       onlinePaymentsAvailable = health.payments;
       state.products = saved;
       state.orders = [];
@@ -1048,6 +1065,11 @@ async function initializeApp() {
         $("#shop-notice").innerHTML = "<strong>Secure online shop</strong><span>Your order is sent to the store. Card payment is processed securely by Stripe.</span>";
         $("#shop-checkout-note").textContent = "Visa and Mastercard checkout is handled securely by Stripe. Card details are never stored by this store.";
         $("#shop-footer-note").textContent = "Secure card checkout · pickup & delivery";
+      } else if (onlineOrdersAvailable) {
+        $("#shop-notice").innerHTML = "<strong>Online orders are open</strong><span>Your order is sent to the store. You can pay when your order is collected or delivered.</span>";
+        $("#shop-checkout-note").textContent = "Place your order now and pay later. No online payment will be taken.";
+        $("#shop-submit").textContent = "Place order — pay later";
+        $("#shop-footer-note").textContent = "Orders sent to store · pay later";
       } else {
         $("#shop-notice").innerHTML = "<strong>Online shop setup in progress</strong><span>Browse products now; secure card checkout will be available soon.</span>";
         $("#shop-checkout-note").textContent = "Online card checkout is not enabled yet. Please check back soon.";

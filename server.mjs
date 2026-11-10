@@ -283,10 +283,15 @@ async function createCustomerCheckout(request, response) {
     sendError(response, 403, "Request origin was not accepted.");
     return;
   }
-  if (!requireConfiguration(response, ["database", "payments"])) return;
+  if (!requireConfiguration(response, ["database"])) return;
   const data = await readJson(request);
   const contact = validateContact(data);
   const items = validateItems(data.items);
+  if (!stripeSecretKey || !stripeWebhookSecret) {
+    const order = await createOrder(contact, items, "Unpaid", "Pay later");
+    sendJson(response, 201, { orderId: order.id, paymentStatus: order.payment_status });
+    return;
+  }
   const products = await getProductsByIds(items.map((item) => item.productId));
   const productsById = new Map(products.map((product) => [product.id, product]));
   const lineItems = items.map((item, index) => {
